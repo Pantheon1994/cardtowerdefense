@@ -4,6 +4,19 @@ const socketIo = require('socket.io');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
+// Global error handling
+process.on('uncaughtException', (error) => {
+  console.error('🔥 Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('🔥 Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+console.log('🚀 Starting Card Tower Defense server...');
+
 const GameRoom = require('./game/GameRoom');
 const { GAME_EVENTS } = require('./constants/events');
 
@@ -30,6 +43,17 @@ app.get('/favicon.ico', (req, res) => {
   res.status(204).end();
 });
 
+// Health check endpoint for Render
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+console.log('🔌 Initializing Socket.io...');
+
 // Initialize Socket.io AFTER static files
 const io = socketIo(server, {
   cors: {
@@ -39,6 +63,8 @@ const io = socketIo(server, {
   serveClient: false,
   path: '/socket.io'
 });
+
+console.log('✅ Socket.io initialized successfully');
 
 // Game rooms storage
 const gameRooms = new Map();
@@ -135,8 +161,16 @@ function findRoomByPlayerId(playerId) {
 }
 
 const PORT = process.env.PORT || 3000;
+console.log(`🔧 Environment PORT: ${process.env.PORT || 'not set, using 3000'}`);
+console.log(`🔧 Final PORT: ${PORT}`);
+
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Card Tower Defense server running on port ${PORT}`);
-  console.log(`Socket.io initialized with path: /socket.io`);
-  console.log(`CORS enabled for all origins`);
+  console.log(`🚀 Card Tower Defense server running on port ${PORT}`);
+  console.log(`📡 Socket.io initialized with path: /socket.io`);
+  console.log(`🌐 CORS enabled for all origins`);
+  console.log(`📁 Serving static files from: ${path.join(__dirname, '../public')}`);
+  console.log(`🔗 Server listening on 0.0.0.0:${PORT}`);
+}).on('error', (err) => {
+  console.error('❌ Server failed to start:', err);
+  process.exit(1);
 });
