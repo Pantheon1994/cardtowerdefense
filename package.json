@@ -6,8 +6,8 @@
   "scripts": {
     "start": "node server/server.js",
     "dev": "nodemon server/server.js",
-    "build": "copy node_modules/socket.io/client-dist/socket.io.js public/socket.io.js",
-    "postinstall": "copy node_modules/socket.io/client-dist/socket.io.js public/socket.io.js || cp node_modules/socket.io/client-dist/socket.io.js public/socket.io.js",
+    "build": "cp node_modules/socket.io/client-dist/socket.io.js public/socket.io.js",
+    "postinstall": "cp node_modules/socket.io/client-dist/socket.io.js public/socket.io.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": ["tower-defense", "multiplayer", "cards", "websocket", "canvas"],

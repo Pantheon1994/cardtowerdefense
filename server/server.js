@@ -9,17 +9,27 @@ const { GAME_EVENTS } = require('./constants/events');
 
 const app = express();
 const server = http.createServer(app);
+
+// Serve static files from public directory FIRST
+app.use(express.static(path.join(__dirname, '../public')));
+
+// Route for root path - serve index.html
+app.get('/', (req, res) => {
+  console.log('Serving index.html for root path');
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
+// Initialize Socket.io AFTER static files
 const io = socketIo(server, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"]
   },
   serveClient: true,
-  path: '/socket.io'
+  path: '/socket.io',
+  transports: ['websocket', 'polling'],
+  allowEIO3: true
 });
-
-// Serve static files from public directory
-app.use(express.static(path.join(__dirname, '../public')));
 
 // Game rooms storage
 const gameRooms = new Map();
@@ -114,12 +124,6 @@ function findRoomByPlayerId(playerId) {
   }
   return null;
 }
-
-// Route for root path - serve index.html
-app.get('/', (req, res) => {
-  console.log('Serving index.html for root path');
-  res.sendFile(path.join(__dirname, '../public/index.html'));
-});
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
