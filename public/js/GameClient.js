@@ -135,6 +135,12 @@ class GameClient {
     this.socket.on('connect_error', (error) => {
       console.error('🔥 Socket connection error:', error);
     });
+
+    // Handle chat messages
+    this.socket.on(GAME_EVENTS.CHAT_MESSAGE_BROADCAST, (data) => {
+      console.log('💬 Chat message received:', data);
+      this.displayChatMessage(data);
+    });
   }
 
   joinGame() {
@@ -897,4 +903,51 @@ class GameClient {
     
     return bonuses;
   }
+
+  sendChatMessage(message) {
+    if (!message || typeof message !== 'string') {
+      return;
+    }
+
+    const trimmedMessage = message.trim();
+    if (trimmedMessage.length === 0) {
+      return;
+    }
+
+    console.log('💬 Sending chat message:', trimmedMessage);
+    this.socket.emit(GAME_EVENTS.CHAT_MESSAGE, { message: trimmedMessage });
+  }
+
+  displayChatMessage(data) {
+    const chatMessages = document.getElementById('chatMessages');
+    if (!chatMessages) {
+      return;
+    }
+
+    const messageElement = document.createElement('div');
+    messageElement.className = 'chat-message';
+    
+    const timestamp = new Date(data.timestamp).toLocaleTimeString();
+    const isOwnMessage = data.playerId === this.socket.id;
+    
+    messageElement.innerHTML = `
+      <div class="chat-message-content ${isOwnMessage ? 'own-message' : ''}">
+        <span class="chat-timestamp">${timestamp}</span>
+        <span class="chat-player-name">${data.playerName}:</span>
+        <span class="chat-message-text">${data.message}</span>
+      </div>
+    `;
+
+    chatMessages.appendChild(messageElement);
+    
+    // Auto-scroll to bottom
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    // Remove old messages to prevent memory buildup (keep last 100)
+    while (chatMessages.children.length > 100) {
+      chatMessages.removeChild(chatMessages.firstChild);
+    }
+  }
 }
+
+window.GameClient = GameClient;

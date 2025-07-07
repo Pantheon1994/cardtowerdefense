@@ -33,6 +33,10 @@ const GAME_EVENTS = {
   TOWER_INFO: 'tower_info',
   CHANGE_TARGETING_MODE: 'change_targeting_mode',
   
+  // Chat events
+  CHAT_MESSAGE: 'chat_message',
+  CHAT_MESSAGE_BROADCAST: 'chat_message_broadcast',
+  
   // Error events
   ERROR: 'error'
 };

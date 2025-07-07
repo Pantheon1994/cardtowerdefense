@@ -119,6 +119,21 @@
             document.body.appendChild(modal);
         }
         
+        function testTargetingModes() {
+            const modes = ['CLOSEST', 'FARTHEST', 'WEAKEST', 'STRONGEST', 'FIRST', 'LAST', 'RANDOM'];
+            const randomMode = modes[Math.floor(Math.random() * modes.length)];
+            
+            const tower = createMockTower('Ténèbres', 2, {
+                targetingMode: randomMode,
+                canDetectInvisible: true
+            });
+            
+            const modal = mockClient.createTowerInfoModal(tower);
+            document.body.appendChild(modal);
+            
+            console.log('Mode de ciblage testé:', randomMode);
+        }
+        
         // Mock the changeTowerTargetingMode function for testing
         mockClient.changeTowerTargetingMode = function(towerId, mode) {
             console.log('Mode de ciblage changé pour', towerId, 'vers', mode);

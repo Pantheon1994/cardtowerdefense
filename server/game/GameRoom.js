@@ -600,22 +600,15 @@ class GameRoom {
   // Handle tower targeting mode change
   changeTowerTargetingMode(playerId, data) {
     const { towerId, mode } = data;
-    
-    // Find tower by ID
     const tower = this.towers.get(towerId);
+    
     if (!tower) {
       console.log(`Tower ${towerId} not found`);
       return;
     }
     
-    // Verify player owns the tower or is admin
-    if (tower.playerId !== playerId) {
-      console.log(`Player ${playerId} cannot change targeting mode of tower ${towerId} (not owner)`);
-      return;
-    }
-    
-    // Valid targeting modes
-    const validModes = ['CLOSEST', 'FARTHEST', 'WEAKEST', 'STRONGEST', 'FIRST', 'LAST', 'RANDOM'];
+    // Validate targeting mode
+    const validModes = ['closest', 'furthest', 'strongest', 'weakest'];
     if (!validModes.includes(mode)) {
       console.log(`Invalid targeting mode: ${mode}`);
       return;
@@ -627,6 +620,39 @@ class GameRoom {
     
     // Broadcast updated game state
     this.broadcastGameState();
+  }
+
+  handleChatMessage(playerId, data) {
+    const player = this.players.get(playerId);
+    if (!player) {
+      console.log(`Player ${playerId} not found in room ${this.id}`);
+      return;
+    }
+
+    const { message } = data;
+    if (!message || typeof message !== 'string') {
+      console.log(`Invalid chat message from player ${playerId}`);
+      return;
+    }
+
+    // Sanitize message (basic filtering)
+    const sanitizedMessage = message.trim().slice(0, 200); // Limit to 200 characters
+    if (sanitizedMessage.length === 0) {
+      return;
+    }
+
+    // Create chat message object
+    const chatMessage = {
+      playerId: player.id,
+      playerName: player.name,
+      message: sanitizedMessage,
+      timestamp: Date.now()
+    };
+
+    console.log(`Chat message from ${player.name}: ${sanitizedMessage}`);
+
+    // Broadcast to all players in the room
+    this.io.to(this.id).emit(GAME_EVENTS.CHAT_MESSAGE_BROADCAST, chatMessage);
   }
 }
 

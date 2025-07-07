@@ -199,6 +199,14 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Handle chat messages
+  socket.on(GAME_EVENTS.CHAT_MESSAGE, (data) => {
+    const room = findRoomByPlayerId(socket.id);
+    if (room) {
+      room.handleChatMessage(socket.id, data);
+    }
+  });
+
   // Handle disconnection
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);
