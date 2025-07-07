@@ -3,6 +3,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const mime = require('mime-types');
 
 // Global error handling
 process.on('uncaughtException', (error) => {
@@ -30,7 +31,14 @@ app.use((req, res, next) => {
 });
 
 // Serve static files from public directory FIRST
-app.use(express.static(path.join(__dirname, '../public')));
+app.use(express.static(path.join(__dirname, '../public'), {
+  setHeaders: (res, filePath) => {
+    const mimeType = mime.lookup(filePath);
+    if (mimeType) {
+      res.setHeader('Content-Type', mimeType);
+    }
+  }
+}));
 
 // Route for root path - serve index.html
 app.get('/', (req, res) => {

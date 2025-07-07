@@ -6,8 +6,8 @@
   "scripts": {
     "start": "node server/server.js",
     "dev": "nodemon server/server.js",
-    "build": "cp node_modules/socket.io/client-dist/socket.io.js public/socket.io.js",
-    "postinstall": "cp node_modules/socket.io/client-dist/socket.io.js public/socket.io.js",
+    "build": "node -e \"require('fs').copyFileSync('node_modules/socket.io/client-dist/socket.io.js', 'public/socket.io.js')\"",
+    "postinstall": "node -e \"require('fs').copyFileSync('node_modules/socket.io/client-dist/socket.io.js', 'public/socket.io.js')\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": ["tower-defense", "multiplayer", "cards", "websocket", "canvas"],
@@ -16,7 +16,8 @@
   "dependencies": {
     "express": "^4.18.2",
     "socket.io": "^4.7.2",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "mime-types": "^2.1.35"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
