@@ -28,7 +28,7 @@
      * **Build Command**: `npm install`
      * **Start Command**: `npm start`
      * **Environment**: `Node`
-     * **Publish Directory**: **(LAISSER VIDE ou mettre ".")**
+     * **Publish Directory**: `public` (ou `.` si public ne fonctionne pas)
    - Cliquez "Create Web Service"
 
 3. **Accès au jeu**
