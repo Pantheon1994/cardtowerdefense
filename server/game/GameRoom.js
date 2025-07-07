@@ -16,7 +16,7 @@ class GameRoom {
     this.projectiles = []; // Add projectiles array
     this.waveManager = new WaveManager();
     this.cardDeck = new CardDeck();
-    this.maxPlayers = 4;
+    this.maxPlayers = 8;
     
     // Game timing
     this.preparationTime = 30000; // 30 seconds
@@ -476,7 +476,7 @@ class GameRoom {
   }
 
   getGameState() {
-    return {
+    const gameState = {
       roomId: this.id,
       phase: this.phase,
       currentWave: this.currentWave,
@@ -485,10 +485,57 @@ class GameRoom {
       towers: Array.from(this.towers.values()),
       enemies: Array.from(this.enemies.values())
     };
+    
+    // Debug log for game state
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`🎯 Game state generated:`, {
+        wave: gameState.currentWave,
+        phase: gameState.phase,
+        playersCount: gameState.players.length,
+        towersCount: gameState.towers.length,
+        enemiesCount: gameState.enemies.length
+      });
+    }
+    
+    return gameState;
   }
 
   broadcastGameState() {
-    this.io.to(this.id).emit(GAME_EVENTS.GAME_STATE_UPDATE, this.getGameState());
+    const gameState = this.getGameState();
+    console.log(`📡 Broadcasting game state - Wave: ${gameState.currentWave}, Phase: ${gameState.phase}, Players: ${gameState.players.length}`);
+    
+    // Add debug info for each player
+    gameState.players.forEach(player => {
+      console.log(`  Player ${player.name}: inventory=${player.inventory.length}, currentCards=${player.currentCards.length}, ready=${player.isReady}`);
+    });
+    
+    this.io.to(this.id).emit(GAME_EVENTS.GAME_STATE_UPDATE, gameState);
+  }
+  
+  // Handle tower inspection
+  handleTowerInspection(playerId, data) {
+    const { towerId } = data;
+    
+    // Find tower by ID
+    const targetTower = this.towers.get(towerId);
+    
+    if (targetTower) {
+      // Get comprehensive tower information
+      const towerInfo = targetTower.getDetailedInfo();
+      
+      // Add owner name
+      const owner = this.players.get(targetTower.playerId);
+      towerInfo.owner = owner ? owner.name : 'Joueur inconnu';
+      
+      // Send tower info to the requesting player
+      const player = this.players.get(playerId);
+      if (player) {
+        this.io.to(playerId).emit(GAME_EVENTS.TOWER_INFO, { towerInfo });
+        console.log(`📋 Tower inspection sent to ${player.name} for tower ${targetTower.type}`);
+      }
+    } else {
+      console.log(`❌ Tower not found for inspection: ${towerId}`);
+    }
   }
 
   broadcastGameUpdate() {
@@ -528,6 +575,58 @@ class GameRoom {
       console.log(`Total enemies spawned: ${Array.from(this.enemies.values()).filter(e => e.isSpawned).length}/${this.enemies.size}`);
       this.broadcastGameState(); // Update all clients when new enemies spawn
     }
+  }
+
+  // Tower inspection method
+  handleTowerInspection(playerId, data) {
+    const { towerId } = data;
+    
+    if (!this.towers.has(towerId)) {
+      return { success: false, error: 'Tower not found' };
+    }
+    
+    const tower = this.towers.get(towerId);
+    const towerInfo = tower.getDetailedInfo();
+    
+    // Send tower info to the requesting player
+    this.io.to(playerId).emit(GAME_EVENTS.TOWER_INFO, {
+      towerInfo: towerInfo
+    });
+    
+    console.log(`Player ${playerId} inspected tower ${towerId}`);
+    return { success: true };
+  }
+
+  // Handle tower targeting mode change
+  changeTowerTargetingMode(playerId, data) {
+    const { towerId, mode } = data;
+    
+    // Find tower by ID
+    const tower = this.towers.get(towerId);
+    if (!tower) {
+      console.log(`Tower ${towerId} not found`);
+      return;
+    }
+    
+    // Verify player owns the tower or is admin
+    if (tower.playerId !== playerId) {
+      console.log(`Player ${playerId} cannot change targeting mode of tower ${towerId} (not owner)`);
+      return;
+    }
+    
+    // Valid targeting modes
+    const validModes = ['CLOSEST', 'FARTHEST', 'WEAKEST', 'STRONGEST', 'FIRST', 'LAST', 'RANDOM'];
+    if (!validModes.includes(mode)) {
+      console.log(`Invalid targeting mode: ${mode}`);
+      return;
+    }
+    
+    // Update tower targeting mode
+    tower.targetingMode = mode;
+    console.log(`Tower ${towerId} targeting mode changed to ${mode} by player ${playerId}`);
+    
+    // Broadcast updated game state
+    this.broadcastGameState();
   }
 }
 

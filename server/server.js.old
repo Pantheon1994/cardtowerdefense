@@ -59,6 +59,52 @@ app.use((req, res, next) => {
   next();
 });
 
+// Global error handling
+process.on('uncaughtException', (error) => {
+  console.error('🔥 Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('🔥 Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+console.log('🚀 Starting Card Tower Defense server...');
+
+const GameRoom = require('./game/GameRoom');
+const { GAME_EVENTS } = require('./constants/events');
+
+const app = express();
+const server = http.createServer(app);
+
+// Debug middleware - log all requests (disable in production)
+if (process.env.NODE_ENV !== 'production') {
+  app.use((req, res, next) => {
+    console.log(`${req.method} ${req.path} - ${req.get('User-Agent')?.substring(0, 50) || 'No User-Agent'}`);
+    next();
+  });
+}
+
+// Custom middleware to fix MIME types BEFORE static files
+app.use((req, res, next) => {
+  console.log(`� Request: ${req.method} ${req.path}`);
+  
+  // Force correct MIME types for specific file extensions
+  if (req.path.endsWith('.js')) {
+    console.log('🔧 Forcing JS MIME type');
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  } else if (req.path.endsWith('.css')) {
+    console.log('🔧 Forcing CSS MIME type');
+    res.setHeader('Content-Type', 'text/css; charset=utf-8');
+  } else if (req.path.endsWith('.html')) {
+    console.log('🔧 Forcing HTML MIME type');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  }
+  
+  next();
+});
+
 // Serve static files from public directory
 app.use(express.static(path.join(__dirname, '../public')));
 
@@ -106,7 +152,7 @@ const io = socketIo(server, {
     origin: "*",
     methods: ["GET", "POST"]
   },
-  serveClient: true, // Enable serving socket.io client
+  serveClient: false,
   path: '/socket.io'
 });
 
@@ -188,14 +234,6 @@ io.on('connection', (socket) => {
     const room = findRoomByPlayerId(socket.id);
     if (room) {
       room.setPlayerReady(socket.id);
-    }
-  });
-
-  // Handle tower targeting mode change
-  socket.on(GAME_EVENTS.CHANGE_TARGETING_MODE, (data) => {
-    const room = findRoomByPlayerId(socket.id);
-    if (room) {
-      room.changeTowerTargetingMode(socket.id, data);
     }
   });
 

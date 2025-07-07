@@ -4,7 +4,7 @@ Un jeu de Tower Defense coopératif multijoueur en temps réel utilisant un syst
 
 ## 🎮 Fonctionnalités
 
-- **Multijoueur coopératif** : Jusqu'à 4 joueurs par partie
+- **Multijoueur coopératif** : Jusqu'à 8 joueurs par partie
 - **Système de cartes** : Chaque joueur reçoit 3 cartes aléatoires par vague
 - **Tours spécialisées** : 5 types de tours avec effets uniques (Feu, Glace, Acide, Terre, Vent)
 - **Effets permanents** : Améliorations cumulables pour les tours

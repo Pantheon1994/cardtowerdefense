@@ -28,6 +28,11 @@ const GAME_EVENTS = {
   ENEMY_KILLED: 'enemy_killed',
   BASE_DAMAGED: 'base_damaged',
   
+  // Tower inspection events
+  INSPECT_TOWER: 'inspect_tower',
+  TOWER_INFO: 'tower_info',
+  CHANGE_TARGETING_MODE: 'change_targeting_mode',
+  
   // Error events
   ERROR: 'error'
 };
@@ -96,8 +101,8 @@ const TOWER_TYPES = {
 const EFFECT_TYPES = {
   ATTACK_SPEED: {
     name: 'Vitesse d\'attaque ↑',
-    description: 'Fréquence de tir augmentée (+10%)',
-    modifier: { attackSpeed: 1.1 } // +10%
+    description: 'Fréquence de tir augmentée (+25%)',
+    modifier: { attackSpeed: 1.25 } // +25%
   },
   MULTI_TARGET: {
     name: 'Nombre de cibles ↑',

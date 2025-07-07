@@ -28,6 +28,11 @@ const GAME_EVENTS = {
   ENEMY_KILLED: 'enemy_killed',
   BASE_DAMAGED: 'base_damaged',
   
+  // Tower inspection events
+  INSPECT_TOWER: 'inspect_tower',
+  TOWER_INFO: 'tower_info',
+  CHANGE_TARGETING_MODE: 'change_targeting_mode',
+  
   // Error events
   ERROR: 'error'
 };
@@ -89,4 +94,15 @@ const ENEMY_TYPES = {
   FAST: 'fast',
   MAGICAL: 'magical',
   INVISIBLE: 'invisible'
+};
+
+// Modes de ciblage des tours
+const TARGETING_MODES = {
+  CLOSEST: { name: 'Plus proche', icon: '🎯', description: 'Attaque l\'ennemi le plus proche' },
+  FARTHEST: { name: 'Plus loin', icon: '🏹', description: 'Attaque l\'ennemi le plus éloigné' },
+  WEAKEST: { name: 'Plus faible', icon: '💔', description: 'Attaque l\'ennemi avec le moins de vie' },
+  STRONGEST: { name: 'Plus fort', icon: '💪', description: 'Attaque l\'ennemi avec le plus de vie' },
+  FIRST: { name: 'Premier', icon: '🥇', description: 'Attaque le premier ennemi sur le chemin' },
+  LAST: { name: 'Dernier', icon: '🥉', description: 'Attaque le dernier ennemi sur le chemin' },
+  RANDOM: { name: 'Aléatoire', icon: '🎲', description: 'Attaque un ennemi aléatoire' }
 };

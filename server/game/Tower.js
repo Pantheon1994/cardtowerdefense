@@ -27,10 +27,21 @@ class Tower {
     this.quality = 1.0;
     this.qualityLevel = 0; // 0=normal, 1=blue, 2=epic, 3=legendary (max)
     
+    // Statistics tracking
+    this.stats = {
+      totalKills: 0,
+      totalDamageDealt: 0,
+      totalAttacks: 0,
+      createdAt: Date.now()
+    };
+    
     // Attack timing
     this.lastAttackTime = 0;
     this.target = null;
     this.projectiles = [];
+    
+    // Targeting mode
+    this.targetingMode = 'CLOSEST'; // Default targeting mode
   }
 
   update(enemies, gameTime) {
@@ -57,15 +68,55 @@ class Tower {
       return;
     }
 
+    // Sort targets based on targeting mode
+    const sortedTargets = this.sortTargetsByMode(targetsInRange);
+    
     // Select targets based on maxTargets
-    const targets = targetsInRange.slice(0, this.maxTargets);
+    const targets = sortedTargets.slice(0, this.maxTargets);
     
     targets.forEach(enemy => {
       this.attackEnemy(enemy);
     });
 
     this.lastAttackTime = Date.now();
-    console.log(`Tower ${this.id} attacked ${targets.length} enemies`);
+    console.log(`Tower ${this.id} attacked ${targets.length} enemies using ${this.targetingMode} targeting`);
+  }
+
+  sortTargetsByMode(targets) {
+    switch (this.targetingMode) {
+      case 'CLOSEST':
+        return targets.sort((a, b) => this.getDistance(a) - this.getDistance(b));
+        
+      case 'FARTHEST':
+        return targets.sort((a, b) => this.getDistance(b) - this.getDistance(a));
+        
+      case 'WEAKEST':
+        return targets.sort((a, b) => a.health - b.health);
+        
+      case 'STRONGEST':
+        return targets.sort((a, b) => b.health - a.health);
+        
+      case 'FIRST':
+        return targets.sort((a, b) => b.currentPathIndex - a.currentPathIndex);
+        
+      case 'LAST':
+        return targets.sort((a, b) => a.currentPathIndex - b.currentPathIndex);
+        
+      case 'RANDOM':
+        return this.shuffleArray([...targets]);
+        
+      default:
+        console.warn(`Unknown targeting mode: ${this.targetingMode}, using CLOSEST`);
+        return targets.sort((a, b) => this.getDistance(a) - this.getDistance(b));
+    }
+  }
+
+  shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
   }
 
   getEnemiesInRange(enemies) {
@@ -80,10 +131,6 @@ class Tower {
         
         const distance = this.getDistance(enemy);
         return distance <= this.range;
-      })
-      .sort((a, b) => {
-        // Prioritize enemies closer to the base (higher path index)
-        return b.currentPathIndex - a.currentPathIndex;
       });
     
     if (enemiesInRange.length > 0) {
@@ -101,6 +148,10 @@ class Tower {
     // Create projectile based on tower type
     const projectile = this.createProjectile(enemy);
     this.projectiles.push(projectile);
+    
+    // Track the attack
+    this.recordAttack();
+    
     console.log(`Tower ${this.id} (${this.type}) created projectile targeting enemy ${enemy.id}`);
   }
 
@@ -164,6 +215,9 @@ class Tower {
     // Apply tower-specific effects
     this.applyTowerEffect(enemy, projectile.effect);
     
+    // Track damage dealt (kills are tracked in applyDamage)
+    this.recordDamage(damageDealt);
+    
     console.log(`Enemy ${enemy.id} took ${damageDealt} damage, health now: ${enemy.health}`);
   }
 
@@ -180,7 +234,14 @@ class Tower {
       finalDamage = Math.max(1, finalDamage * (1 - enemy.magicResist / 100));
     }
     
+    const wasAlive = enemy.health > 0;
     enemy.health -= finalDamage;
+    
+    // Track kill if this damage killed the enemy
+    if (wasAlive && enemy.health <= 0) {
+      this.recordKill();
+    }
+    
     return finalDamage;
   }
 
@@ -404,6 +465,212 @@ class Tower {
         delete enemy.effects;
       }
     }
+  }
+  
+  // Get comprehensive tower information including statistics and DPS
+  getTowerInfo() {
+    const currentTime = Date.now();
+    const timeSinceCreated = (currentTime - this.stats.createdAt) / 1000; // in seconds
+    
+    // Calculate DPS (Damage Per Second)
+    const attacksPerSecond = this.attackSpeed / 1000;
+    const theoreticalDPS = this.damage * attacksPerSecond * this.maxTargets;
+    
+    // Calculate actual DPS based on damage dealt
+    const actualDPS = timeSinceCreated > 0 ? this.stats.totalDamageDealt / timeSinceCreated : 0;
+    
+    // Get quality name
+    const qualityNames = ['Normal', 'Bleu', 'Épique', 'Légendaire'];
+    const qualityColors = ['#ffffff', '#3498db', '#9b59b6', '#f1c40f'];
+    
+    return {
+      id: this.id,
+      type: this.type,
+      position: { x: this.x, y: this.y },
+      playerId: this.playerId,
+      
+      // Base stats
+      baseStats: {
+        damage: this.baseDamage,
+        attackSpeed: this.baseAttackSpeed,
+        range: this.baseRange
+      },
+      
+      // Current stats (with effects applied)
+      currentStats: {
+        damage: this.damage,
+        attackSpeed: this.attackSpeed,
+        range: this.range,
+        maxTargets: this.maxTargets,
+        canDetectInvisible: this.canDetectInvisible
+      },
+      
+      // Quality
+      quality: {
+        level: this.qualityLevel,
+        name: qualityNames[this.qualityLevel],
+        color: qualityColors[this.qualityLevel],
+        multiplier: this.quality
+      },
+      
+      // Effects applied
+      effects: this.effects.map(effect => ({
+        type: effect.type,
+        name: this.getEffectName(effect.type),
+        description: this.getEffectDescription(effect.type)
+      })),
+      
+      // Statistics
+      statistics: {
+        totalKills: this.stats.totalKills,
+        totalDamageDealt: this.stats.totalDamageDealt,
+        totalAttacks: this.stats.totalAttacks,
+        timeSinceCreated: Math.floor(timeSinceCreated)
+      },
+      
+      // DPS calculations
+      dps: {
+        theoretical: Math.round(theoreticalDPS * 100) / 100,
+        actual: Math.round(actualDPS * 100) / 100,
+        attacksPerSecond: Math.round(attacksPerSecond * 100) / 100
+      },
+      
+      // Tower type info
+      towerEffect: this.effect,
+      specialAbility: this.getSpecialAbilityDescription()
+    };
+  }
+  
+  // Get effect name for display
+  getEffectName(effectType) {
+    const effectNames = {
+      [EFFECT_TYPES.DAMAGE_UP]: 'Dégâts ↑',
+      [EFFECT_TYPES.ATTACK_SPEED_UP]: "Vitesse d'attaque ↑",
+      [EFFECT_TYPES.RANGE_UP]: 'Portée ↑',
+      [EFFECT_TYPES.MULTI_TARGET]: 'Nombre de cibles ↑',
+      [EFFECT_TYPES.QUALITY_UP]: 'Qualité ↑',
+      [EFFECT_TYPES.DETECT_INVISIBLE]: "Détection d'invisibles"
+    };
+    return effectNames[effectType] || effectType;
+  }
+  
+  // Get effect description
+  getEffectDescription(effectType) {
+    const descriptions = {
+      [EFFECT_TYPES.DAMAGE_UP]: '+50% de dégâts',
+      [EFFECT_TYPES.ATTACK_SPEED_UP]: '+50% de vitesse d\'attaque',
+      [EFFECT_TYPES.RANGE_UP]: '+50% de portée',
+      [EFFECT_TYPES.MULTI_TARGET]: '+1 cible supplémentaire',
+      [EFFECT_TYPES.QUALITY_UP]: 'Améliore la qualité de la tour',
+      [EFFECT_TYPES.DETECT_INVISIBLE]: 'Peut détecter les ennemis invisibles'
+    };
+    return descriptions[effectType] || 'Effet spécial';
+  }
+  
+  // Get special ability description based on tower type
+  getSpecialAbilityDescription() {
+    const abilities = {
+      [TOWER_TYPES.ICE.name]: 'Ralentit les ennemis touchés',
+      [TOWER_TYPES.FIRE.name]: 'Inflige des dégâts de feu continus',
+      [TOWER_TYPES.WIND.name]: 'Repousse les ennemis en arrière',
+      [TOWER_TYPES.EARTH.name]: 'Réduit l\'armure et peut étourdir',
+      [TOWER_TYPES.ACID.name]: 'Empoisonne les ennemis'
+    };
+    return abilities[this.type] || 'Aucune capacité spéciale';
+  }
+  
+  // Track when tower deals damage (for statistics)
+  recordDamage(damage) {
+    this.stats.totalDamageDealt += damage;
+  }
+  
+  // Track when tower kills an enemy
+  recordKill() {
+    this.stats.totalKills++;
+  }
+  
+  // Track when tower attacks
+  recordAttack() {
+    this.stats.totalAttacks++;
+  }
+
+  // Inspection and statistics methods
+  getDetailedInfo() {
+    const dps = this.calculateDPS();
+    const uptime = this.getUptime();
+    
+    return {
+      id: this.id,
+      type: this.type,
+      position: { x: this.x, y: this.y },
+      owner: this.playerId,
+      
+      // Current stats
+      stats: {
+        damage: Math.round(this.damage * 100) / 100,
+        attackSpeed: Math.round(this.attackSpeed * 100) / 100,
+        range: Math.round(this.range),
+        dps: Math.round(dps * 100) / 100,
+        maxTargets: this.maxTargets,
+        canDetectInvisible: this.canDetectInvisible
+      },
+      
+      // Base stats for comparison
+      baseStats: {
+        damage: this.baseDamage,
+        attackSpeed: this.baseAttackSpeed,
+        range: this.baseRange
+      },
+      
+      // Quality information
+      quality: {
+        level: this.qualityLevel,
+        multiplier: Math.round(this.quality * 100) / 100,
+        name: this.getQualityName()
+      },
+      
+      // Combat statistics
+      combatStats: {
+        totalKills: this.stats.totalKills,
+        totalDamageDealt: Math.round(this.stats.totalDamageDealt),
+        totalAttacks: this.stats.totalAttacks,
+        averageDamagePerAttack: this.stats.totalAttacks > 0 ? 
+          Math.round((this.stats.totalDamageDealt / this.stats.totalAttacks) * 100) / 100 : 0,
+        killsPerMinute: this.stats.totalKills / (uptime / 60000),
+        uptime: Math.round(uptime / 1000) // in seconds
+      },
+      
+      // Applied effects
+      effects: this.effects.map(effect => ({
+        name: effect.name,
+        description: effect.description,
+        appliedBy: effect.appliedBy
+      })),
+      
+      // Tower type info
+      towerType: {
+        name: TOWER_TYPES[this.type].name,
+        emoji: TOWER_TYPES[this.type].emoji,
+        specialEffect: TOWER_TYPES[this.type].effect
+      },
+      
+      // Targeting mode
+      targetingMode: this.targetingMode
+    };
+  }
+
+  calculateDPS() {
+    // DPS = damage per attack * attacks per second
+    return this.damage * this.attackSpeed;
+  }
+
+  getUptime() {
+    return Date.now() - this.stats.createdAt;
+  }
+
+  getQualityName() {
+    const qualityNames = ['Normal', 'Rare', 'Épique', 'Légendaire'];
+    return qualityNames[this.qualityLevel] || 'Normal';
   }
 }
 

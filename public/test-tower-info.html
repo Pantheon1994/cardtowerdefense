@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Tour Info Modal</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: white;
+            padding: 20px;
+        }
+        
+        .test-button {
+            background: #4a9eff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+            font-size: 16px;
+        }
+        
+        .test-button:hover {
+            background: #3a8eef;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test des nouvelles fonctionnalités d'inspection des tours</h1>
+    
+    <button class="test-button" onclick="testFireTower()">Test Tour de Feu</button>
+    <button class="test-button" onclick="testIceTower()">Test Tour de Glace</button>
+    <button class="test-button" onclick="testEarthTower()">Test Tour de Terre</button>
+    <button class="test-button" onclick="testUpgradedTower()">Test Tour Améliorée</button>
+    <button class="test-button" onclick="testTargetingModes()">Test Modes de Ciblage</button>
+    
+    <script src="js/constants.js"></script>
+    <script src="js/GameRenderer.js"></script>
+    <script src="js/GameClient.js"></script>
+    
+    <script>
+        // Mock client
+        const mockClient = new GameClient();
+        mockClient.socket = { emit: () => {} }; // Mock socket
+        
+        function createMockTower(type, quality = 0, bonuses = {}) {
+            return {
+                id: 'test-tower-' + Date.now(),
+                towerType: {
+                    name: type,
+                    emoji: type === 'Feu' ? '🔥' : type === 'Glace' ? '❄️' : '🪨',
+                    specialEffect: 'Effet spécial du ' + type
+                },
+                quality: {
+                    name: quality === 0 ? 'Normal' : quality === 1 ? 'Rare' : quality === 2 ? 'Épique' : 'Légendaire',
+                    level: quality,
+                    multiplier: 1 + (quality * 0.33)
+                },
+                owner: 'TestPlayer',
+                position: { x: 100, y: 100 },
+                stats: {
+                    damage: 15 + (bonuses.damage || 0),
+                    attackSpeed: 1.0 + (bonuses.attackSpeed || 0),
+                    range: 100 + (bonuses.range || 0),
+                    dps: (15 + (bonuses.damage || 0)) * (1.0 + (bonuses.attackSpeed || 0)),
+                    maxTargets: 1,
+                    canDetectInvisible: bonuses.canDetectInvisible || false
+                },
+                baseStats: {
+                    damage: 15,
+                    attackSpeed: 1.0,
+                    range: 100
+                },
+                combatStats: {
+                    uptime: 45,
+                    totalKills: 12,
+                    totalDamageDealt: 340,
+                    totalAttacks: 28,
+                    averageDamagePerAttack: 12.1,
+                    killsPerMinute: 16.0
+                },
+                effects: bonuses.effects || [],
+                targetingMode: bonuses.targetingMode || 'CLOSEST' // Ajout du mode de ciblage
+            };
+        }
+        
+        function testFireTower() {
+            const tower = createMockTower('Feu', 1);
+            const modal = mockClient.createTowerInfoModal(tower);
+            document.body.appendChild(modal);
+        }
+        
+        function testIceTower() {
+            const tower = createMockTower('Glace', 2, { canDetectInvisible: true });
+            const modal = mockClient.createTowerInfoModal(tower);
+            document.body.appendChild(modal);
+        }
+        
+        function testEarthTower() {
+            const tower = createMockTower('Terre', 0);
+            const modal = mockClient.createTowerInfoModal(tower);
+            document.body.appendChild(modal);
+        }
+        
+        function testUpgradedTower() {
+            const tower = createMockTower('Feu', 3, {
+                damage: 10,
+                attackSpeed: 0.5,
+                range: 20,
+                effects: [
+                    { name: 'Vitesse ↑', appliedBy: 'Player2', description: 'Augmente la vitesse d\'attaque de 25%' },
+                    { name: 'Portée ↑', appliedBy: 'Player3', description: 'Augmente la portée de 15%' }
+                ]
+            });
+            const modal = mockClient.createTowerInfoModal(tower);
+            document.body.appendChild(modal);
+        }
+        
+        // Mock the changeTowerTargetingMode function for testing
+        mockClient.changeTowerTargetingMode = function(towerId, mode) {
+            console.log('Mode de ciblage changé pour', towerId, 'vers', mode);
+            alert('Mode de ciblage changé vers: ' + mode);
+        };
+    </script>
+</body>
+</html>

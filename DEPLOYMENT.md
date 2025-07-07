@@ -61,7 +61,7 @@ Une fois déployé :
 2. Envoyez-la à vos amis
 3. Créez une room avec un nom unique
 4. Vos amis rejoignent avec le même nom de room
-5. Lancez la partie à 4 joueurs maximum !
+5. Lancez la partie à 8 joueurs maximum !
 
 ## 🔧 Résolution de problèmes
 

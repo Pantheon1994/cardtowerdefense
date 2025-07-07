@@ -9,7 +9,7 @@ This is a cooperative multiplayer tower defense game built with:
 
 ## Key Game Mechanics
 
-1. **Multiplayer Cooperative**: Up to 4 players per room
+1. **Multiplayer Cooperative**: Up to 8 players per room
 2. **Card-based System**: Players receive 3 random cards (towers or effects) each wave
 3. **Tower Placement**: Only in predefined zones
 4. **Effect System**: Permanent, cumulative effects applied to towers

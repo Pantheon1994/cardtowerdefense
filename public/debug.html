@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Debug - Card Tower Defense</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #1a1a1a;
+            color: white;
+        }
+        .debug-info {
+            background-color: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        .status {
+            color: #4CAF50;
+        }
+        .error {
+            color: #f44336;
+        }
+        .info {
+            color: #2196F3;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        input {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background-color: #333;
+            color: white;
+        }
+        .log {
+            background-color: #1e1e1e;
+            padding: 10px;
+            border-radius: 4px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>🐛 Debug Mode - Card Tower Defense</h1>
+    
+    <div class="debug-info">
+        <h3>Connexion Status</h3>
+        <div id="connectionStatus" class="status">Déconnecté</div>
+    </div>
+    
+    <div class="debug-info">
+        <h3>Rejoindre une partie</h3>
+        <input type="text" id="playerName" placeholder="Nom du joueur" value="TestPlayer">
+        <button onclick="joinGame()">Rejoindre</button>
+    </div>
+    
+    <div class="debug-info">
+        <h3>État du jeu</h3>
+        <div id="gameState">Pas de données</div>
+    </div>
+    
+    <div class="debug-info">
+        <h3>Cartes et Inventaire</h3>
+        <div id="cardsInventory">Pas de données</div>
+    </div>
+    
+    <div class="debug-info">
+        <h3>Actions</h3>
+        <button onclick="selectCard(0)">Sélectionner carte 0</button>
+        <button onclick="selectCard(1)">Sélectionner carte 1</button>
+        <button onclick="selectCard(2)">Sélectionner carte 2</button>
+        <button onclick="setReady()">Prêt</button>
+    </div>
+    
+    <div class="debug-info">
+        <h3>Logs</h3>
+        <div id="logContainer" class="log"></div>
+        <button onclick="clearLogs()">Effacer logs</button>
+    </div>
+    
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let gameState = null;
+        let playerId = null;
+        
+        function log(message) {
+            const logContainer = document.getElementById('logContainer');
+            const timestamp = new Date().toLocaleTimeString();
+            logContainer.textContent += `[${timestamp}] ${message}\n`;
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        function clearLogs() {
+            document.getElementById('logContainer').textContent = '';
+        }
+        
+        function updateConnectionStatus(status) {
+            document.getElementById('connectionStatus').textContent = status;
+        }
+        
+        function updateGameState() {
+            if (!gameState) {
+                document.getElementById('gameState').textContent = 'Pas de données';
+                return;
+            }
+            
+            const currentPlayer = gameState.players.find(p => p.id === playerId);
+            
+            document.getElementById('gameState').innerHTML = `
+                <strong>Vague:</strong> ${gameState.currentWave}<br>
+                <strong>Phase:</strong> ${gameState.phase}<br>
+                <strong>Joueurs:</strong> ${gameState.players.length}<br>
+                <strong>Tours:</strong> ${gameState.towers.length}<br>
+                <strong>Ennemis:</strong> ${gameState.enemies.length}<br>
+                <strong>Santé base:</strong> ${gameState.baseHealth}
+            `;
+            
+            if (currentPlayer) {
+                document.getElementById('cardsInventory').innerHTML = `
+                    <strong>Inventaire:</strong> ${currentPlayer.inventory.length} cartes<br>
+                    <strong>Cartes actuelles:</strong> ${currentPlayer.currentCards.length} cartes<br>
+                    <strong>Prêt:</strong> ${currentPlayer.isReady ? 'Oui' : 'Non'}<br>
+                    <strong>Nom:</strong> ${currentPlayer.name}
+                `;
+            } else {
+                document.getElementById('cardsInventory').innerHTML = 'Joueur non trouvé';
+            }
+        }
+        
+        // Socket events
+        socket.on('connect', () => {
+            log('✅ Connecté au serveur');
+            updateConnectionStatus('Connecté');
+        });
+        
+        socket.on('disconnect', () => {
+            log('❌ Déconnecté du serveur');
+            updateConnectionStatus('Déconnecté');
+        });
+        
+        socket.on('room_joined', (data) => {
+            log(`🏠 Rejoint la room: ${data.roomId}`);
+            playerId = data.playerId;
+            gameState = data.gameState;
+            updateGameState();
+        });
+        
+        socket.on('game_state_update', (data) => {
+            log(`🔄 Mise à jour d'état: Vague ${data.gameState.currentWave}, Phase ${data.gameState.phase}`);
+            gameState = data.gameState;
+            updateGameState();
+        });
+        
+        socket.on('wave_start', (data) => {
+            log(`🌊 Début de vague avec ${data.enemies.length} ennemis`);
+        });
+        
+        socket.on('wave_end', (data) => {
+            log(`✅ Fin de vague ${data.waveNumber}`);
+        });
+        
+        socket.on('error', (data) => {
+            log(`❌ Erreur: ${data.message}`);
+        });
+        
+        // Actions
+        function joinGame() {
+            const playerName = document.getElementById('playerName').value;
+            log(`🎮 Tentative de connexion avec le nom: ${playerName}`);
+            socket.emit('join_room', {
+                playerName: playerName,
+                roomId: null
+            });
+        }
+        
+        function selectCard(cardIndex) {
+            if (!gameState) {
+                log('❌ Pas d\'état de jeu');
+                return;
+            }
+            
+            const currentPlayer = gameState.players.find(p => p.id === playerId);
+            if (!currentPlayer || !currentPlayer.currentCards[cardIndex]) {
+                log(`❌ Carte ${cardIndex} non disponible`);
+                return;
+            }
+            
+            log(`🎯 Sélection de la carte ${cardIndex}: ${currentPlayer.currentCards[cardIndex].name}`);
+            socket.emit('select_card', { cardIndex });
+        }
+        
+        function setReady() {
+            log('✅ Marquer comme prêt');
+            socket.emit('player_ready');
+        }
+        
+        // Auto-join pour les tests
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                joinGame();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
