@@ -10,6 +10,12 @@ const { GAME_EVENTS } = require('./constants/events');
 const app = express();
 const server = http.createServer(app);
 
+// Debug middleware - log all requests
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path} - ${req.get('User-Agent')?.substring(0, 50) || 'No User-Agent'}`);
+  next();
+});
+
 // Serve static files from public directory FIRST
 app.use(express.static(path.join(__dirname, '../public')));
 
@@ -17,6 +23,11 @@ app.use(express.static(path.join(__dirname, '../public')));
 app.get('/', (req, res) => {
   console.log('Serving index.html for root path');
   res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
+// Handle favicon.ico to avoid 404 errors
+app.get('/favicon.ico', (req, res) => {
+  res.status(204).end();
 });
 
 // Initialize Socket.io AFTER static files
@@ -126,4 +137,6 @@ function findRoomByPlayerId(playerId) {
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Card Tower Defense server running on port ${PORT}`);
+  console.log(`Socket.io initialized with path: /socket.io`);
+  console.log(`CORS enabled for all origins`);
 });

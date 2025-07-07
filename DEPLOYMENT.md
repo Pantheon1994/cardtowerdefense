@@ -28,7 +28,7 @@
      * **Build Command**: `npm install`
      * **Start Command**: `npm start`
      * **Environment**: `Node`
-     * **Publish Directory**: `public` (ou `.` si public ne fonctionne pas)
+     * **Publish Directory**: (LAISSER VIDE)
    - Cliquez "Create Web Service"
 
 3. **Accès au jeu**
@@ -76,9 +76,8 @@ Une fois déployé :
 - Testez localement avec `npm start` avant de déployer
 
 ### Si Socket.io ne se charge pas (erreur MIME) :
-- Le fichier `socket.io.js` doit être dans le dossier `public`
-- Lancez `npm run build` pour copier le fichier Socket.io
-- Vérifiez que `<script src="socket.io.js"></script>` est dans `index.html`
+- Le jeu utilise maintenant le CDN Socket.io officiel
+- Vérifiez que `<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>` est dans `index.html`
 - Consultez les logs Render pour voir les erreurs serveur
 
 ### Si les amis ne peuvent pas se connecter :
