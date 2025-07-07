@@ -62,6 +62,20 @@ class WaveManager {
         reward: 25,
         color: "#e67e22",
         types: [ENEMY_TYPES.FAST, ENEMY_TYPES.ARMORED]
+      },
+      healer: {
+        name: "Guérisseur",
+        health: 150,
+        speed: 35,
+        armor: 2,
+        magicResist: 30,
+        reward: 30,
+        color: "#1abc9c",
+        types: [ENEMY_TYPES.HEALER],
+        healRadius: 80, // Rayon de soin
+        healAmount: 15, // Montant de base du soin
+        healInterval: 2000, // Intervalle entre les soins (2 secondes)
+        lastHealTime: 0
       }
     };
   }
@@ -164,7 +178,8 @@ class WaveManager {
         { type: 'orc', count: Math.floor(waveNumber / 2) },
         { type: 'scout', count: Math.floor(waveNumber / 2) },
         { type: 'mage', count: Math.floor(waveNumber / 4) },
-        { type: 'assassin', count: Math.floor(waveNumber / 5) }
+        { type: 'assassin', count: Math.floor(waveNumber / 5) },
+        { type: 'healer', count: Math.floor(waveNumber / 8) } // Healers apparaissent plus tard
       ];
     } else {
       // Boss waves: mixed types including combinations
@@ -174,7 +189,8 @@ class WaveManager {
         { type: 'scout', count: Math.floor(waveNumber / 3) },
         { type: 'mage', count: Math.floor(waveNumber / 3) },
         { type: 'assassin', count: Math.floor(waveNumber / 4) },
-        { type: 'armored_scout', count: Math.floor(waveNumber / 6) }
+        { type: 'armored_scout', count: Math.floor(waveNumber / 6) },
+        { type: 'healer', count: Math.floor(waveNumber / 5) } // Plus de healers dans les vagues boss
       ];
     }
 

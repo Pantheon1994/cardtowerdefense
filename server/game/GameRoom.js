@@ -1,4 +1,4 @@
-const { GAME_EVENTS, GAME_PHASES, TOWER_TYPES, EFFECT_TYPES } = require('../constants/events');
+const { GAME_EVENTS, GAME_PHASES, TOWER_TYPES, EFFECT_TYPES, ENEMY_TYPES } = require('../constants/events');
 const WaveManager = require('./WaveManager');
 const CardDeck = require('./CardDeck');
 const Tower = require('./Tower');
@@ -176,6 +176,9 @@ class GameRoom {
     // Update enemies
     this.updateEnemies();
     
+    // Process healer effects
+    this.processHealerEffects();
+    
     // Update towers
     this.updateTowers();
     
@@ -220,6 +223,76 @@ class GameRoom {
     const gameTime = Date.now();
     for (const [towerId, tower] of this.towers) {
       tower.update(this.enemies, gameTime);
+    }
+  }
+
+  processHealerEffects() {
+    const currentTime = Date.now();
+    
+    for (const [enemyId, enemy] of this.enemies) {
+      // Process only healer enemies
+      if (!enemy.types || !enemy.types.includes(ENEMY_TYPES.HEALER)) continue;
+      if (enemy.health <= 0 || !enemy.isSpawned) continue;
+      
+      // Check if it's time to heal
+      if (currentTime - enemy.lastHealTime < enemy.healInterval) continue;
+      
+      // Calculate heal amount based on wave number (stronger over time)
+      const waveMultiplier = 1 + (this.currentWave - 1) * 0.2; // +20% per wave
+      const actualHealAmount = Math.floor(enemy.healAmount * waveMultiplier);
+      
+      // Find allies within heal radius
+      let healedCount = 0;
+      for (const [allyId, ally] of this.enemies) {
+        if (ally.id === enemy.id) continue; // Don't heal self
+        if (ally.health <= 0 || !ally.isSpawned) continue;
+        
+        // Check if ally has anti-heal effect
+        if (ally.effects && ally.effects.antiHeal) {
+          const antiHealRemaining = currentTime - ally.effects.antiHeal.appliedAt;
+          if (antiHealRemaining < ally.effects.antiHeal.duration) {
+            continue; // Skip healing this ally
+          }
+        }
+        
+        // Check distance
+        const dx = enemy.x - ally.x;
+        const dy = enemy.y - ally.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance <= enemy.healRadius) {
+          // Heal the ally
+          const healedAmount = Math.min(actualHealAmount, ally.maxHealth - ally.health);
+          if (healedAmount > 0) {
+            ally.health += healedAmount;
+            healedCount++;
+            
+            // Add visual effect
+            if (!ally.effects) ally.effects = {};
+            ally.effects.healed = {
+              duration: 1000,
+              appliedAt: currentTime,
+              healAmount: healedAmount,
+              visualEffect: {
+                type: 'heal',
+                color: '#00FF00',
+                particleColor: '#90EE90',
+                intensity: 0.8,
+                animation: 'sparkle'
+              }
+            };
+            
+            console.log(`Healer ${enemy.id} healed ally ${ally.id} for ${healedAmount} HP (wave ${this.currentWave})`);
+          }
+        }
+      }
+      
+      // Update last heal time
+      enemy.lastHealTime = currentTime;
+      
+      if (healedCount > 0) {
+        console.log(`Healer ${enemy.id} healed ${healedCount} allies for ${actualHealAmount} HP each`);
+      }
     }
   }
 

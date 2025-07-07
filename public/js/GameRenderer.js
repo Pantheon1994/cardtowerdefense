@@ -286,17 +286,17 @@ class GameRenderer {
   }
 
   drawEnemy(enemy) {
-    // Draw enemy body
-    this.ctx.fillStyle = enemy.color || '#e74c3c';
-    this.ctx.beginPath();
-    this.ctx.arc(enemy.x, enemy.y, 12, 0, 2 * Math.PI);
-    this.ctx.fill();
-    
-    // Draw enemy border
-    this.ctx.strokeStyle = '#000';
-    this.ctx.lineWidth = 2;
-    this.ctx.stroke();
-    
+    // Special visualization for healers
+    if (enemy.types && enemy.types.includes('healer')) {
+      this.drawHealerEnemy(enemy);
+    } else {
+      // Draw regular enemy body
+      this.ctx.fillStyle = enemy.color || '#e74c3c';
+      this.ctx.beginPath();
+      this.ctx.arc(enemy.x, enemy.y, 10, 0, 2 * Math.PI);
+      this.ctx.fill();
+    }
+
     // Draw visual effects around enemy
     this.drawEnemyEffects(enemy);
     
@@ -340,6 +340,52 @@ class GameRenderer {
     }
   }
 
+  drawHealerEnemy(enemy) {
+    const currentTime = Date.now();
+    const pulse = Math.sin(currentTime / 300) * 0.2 + 0.8;
+    
+    // Draw healer body with pulsing effect
+    this.ctx.fillStyle = enemy.color || '#1abc9c';
+    this.ctx.beginPath();
+    this.ctx.arc(enemy.x, enemy.y, 12 * pulse, 0, 2 * Math.PI);
+    this.ctx.fill();
+    
+    // Draw healing aura
+    this.ctx.globalAlpha = 0.3;
+    this.ctx.fillStyle = '#00FF00';
+    this.ctx.beginPath();
+    this.ctx.arc(enemy.x, enemy.y, enemy.healRadius || 80, 0, 2 * Math.PI);
+    this.ctx.fill();
+    this.ctx.globalAlpha = 1.0;
+    
+    // Draw healing cross symbol
+    this.ctx.strokeStyle = '#FFFFFF';
+    this.ctx.lineWidth = 2;
+    this.ctx.beginPath();
+    this.ctx.moveTo(enemy.x - 6, enemy.y);
+    this.ctx.lineTo(enemy.x + 6, enemy.y);
+    this.ctx.moveTo(enemy.x, enemy.y - 6);
+    this.ctx.lineTo(enemy.x, enemy.y + 6);
+    this.ctx.stroke();
+    
+    // Draw healing particles
+    const numParticles = 4;
+    for (let i = 0; i < numParticles; i++) {
+      const angle = (i * 2 * Math.PI / numParticles) + currentTime / 500;
+      const radius = 20 + Math.sin(currentTime / 200 + i) * 5;
+      const particleX = enemy.x + Math.cos(angle) * radius;
+      const particleY = enemy.y + Math.sin(angle) * radius;
+      
+      this.ctx.globalAlpha = 0.6 + Math.sin(currentTime / 300 + i) * 0.3;
+      this.ctx.fillStyle = '#90EE90';
+      this.ctx.beginPath();
+      this.ctx.arc(particleX, particleY, 2, 0, 2 * Math.PI);
+      this.ctx.fill();
+    }
+    
+    this.ctx.globalAlpha = 1.0;
+  }
+
   drawEnemyEffects(enemy) {
     if (!enemy.effects) return;
     
@@ -372,6 +418,12 @@ class GameRenderer {
         break;
       case 'wind':
         this.drawWindEffect(enemy, color, particleColor, intensity, currentTime);
+        break;
+      case 'heal':
+        this.drawHealEffect(enemy, color, particleColor, intensity, currentTime);
+        break;
+      case 'anti_heal':
+        this.drawAntiHealEffect(enemy, color, particleColor, intensity, currentTime);
         break;
     }
   }
@@ -622,6 +674,7 @@ class GameRenderer {
       case 'fast': return '#f39c12';
       case 'magical': return '#9b59b6';
       case 'invisible': return '#34495e';
+      case 'healer': return '#1abc9c';
       default: return '#e74c3c';
     }
   }

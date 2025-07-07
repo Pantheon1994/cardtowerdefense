@@ -129,6 +129,14 @@ class Tower {
           return false;
         }
         
+        // Check for vortex cooldown (only for vortex towers)
+        if (this.effect === 'vortex' && enemy.effects && enemy.effects.vortexCooldown) {
+          const cooldownRemaining = Date.now() - enemy.effects.vortexCooldown.appliedAt;
+          if (cooldownRemaining < enemy.effects.vortexCooldown.duration) {
+            return false; // Skip this enemy, still in cooldown
+          }
+        }
+        
         const distance = this.getDistance(enemy);
         return distance <= this.range;
       });
@@ -262,6 +270,9 @@ class Tower {
       case 'vortex':
         this.applyVortexEffect(enemy);
         break;
+      case 'anti_heal':
+        this.applyAntiHealEffect(enemy);
+        break;
       case 'none':
         // Pas d'effet spécial (tour Ténèbres)
         break;
@@ -357,6 +368,8 @@ class Tower {
     // Vortex: attire tous les ennemis proches vers l'ennemi touché
     // Cet effet nécessite accès à tous les ennemis, géré dans GameRoom
     if (!enemy.effects) enemy.effects = {};
+    
+    // Appliquer l'effet vortex
     enemy.effects.vortex = {
       centerX: enemy.x,
       centerY: enemy.y,
@@ -371,14 +384,55 @@ class Tower {
         animation: 'swirl'
       }
     };
-    console.log(`Enemy ${enemy.id} caught in vortex`);
+    
+    // Ajouter un cooldown pour éviter les effets répétés
+    enemy.effects.vortexCooldown = {
+      duration: 3000, // 3 secondes de cooldown
+      appliedAt: Date.now()
+    };
+    
+    console.log(`Enemy ${enemy.id} caught in vortex with 3s cooldown`);
+  }
+
+  applyAntiHealEffect(enemy) {
+    // Anti-heal: empêche tous les soins pendant 5 secondes
+    if (!enemy.effects) enemy.effects = {};
+    
+    enemy.effects.antiHeal = {
+      duration: 5000, // 5 secondes
+      appliedAt: Date.now(),
+      visualEffect: {
+        type: 'anti_heal',
+        color: '#FF0000',
+        particleColor: '#FF4500',
+        intensity: 0.9,
+        animation: 'pulse'
+      }
+    };
+    
+    console.log(`Enemy ${enemy.id} affected by anti-heal for 5 seconds`);
   }
 
   applyEffect(effectType) {
-    this.effects.push(effectType);
     const effect = EFFECT_TYPES[effectType];
     
-    if (effect && effect.modifier) {
+    if (!effect) {
+      console.warn(`Unknown effect type: ${effectType}`);
+      return;
+    }
+
+    // Store effect with complete information
+    const effectData = {
+      type: effectType,
+      name: effect.name,
+      description: effect.description,
+      appliedBy: 'player', // Could be enhanced to track which player applied it
+      appliedAt: Date.now()
+    };
+    
+    this.effects.push(effectData);
+    
+    if (effect.modifier) {
       for (const [key, value] of Object.entries(effect.modifier)) {
         if (key === 'qualityMultiplier') {
           // Special handling for quality upgrades
@@ -449,7 +503,7 @@ class Tower {
       }
       
       // Process other temporary effects
-      const tempEffects = ['armorReduced', 'earthStun'];
+      const tempEffects = ['armorReduced', 'earthStun', 'vortexCooldown', 'antiHeal', 'healed'];
       tempEffects.forEach(effectName => {
         if (enemy.effects[effectName]) {
           const effect = enemy.effects[effectName];
@@ -516,8 +570,10 @@ class Tower {
       // Effects applied
       effects: this.effects.map(effect => ({
         type: effect.type,
-        name: this.getEffectName(effect.type),
-        description: this.getEffectDescription(effect.type)
+        name: effect.name,
+        description: effect.description,
+        appliedBy: effect.appliedBy,
+        appliedAt: effect.appliedAt
       })),
       
       // Statistics

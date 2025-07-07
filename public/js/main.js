@@ -7,6 +7,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize game client
   gameClient = new GameClient();
   
+  // Setup chat functionality
+  setupChatInterface();
+  
   // Start continuous render loop
   function gameLoop() {
     if (gameClient && gameClient.renderer) {
@@ -18,44 +21,37 @@ document.addEventListener('DOMContentLoaded', () => {
   // Start the game loop
   gameLoop();
   
-  // Initialize chat functionality
-  initializeChatSystem();
-  
   console.log('✅ Game client initialized with render loop');
 });
 
-function initializeChatSystem() {
+function setupChatInterface() {
   const chatInput = document.getElementById('chatInput');
   const chatSendBtn = document.getElementById('chatSendBtn');
   
   if (!chatInput || !chatSendBtn) {
-    console.warn('Chat elements not found, skipping chat initialization');
+    console.warn('Chat elements not found');
     return;
   }
   
-  // Handle send button click
+  // Send message on button click
   chatSendBtn.addEventListener('click', () => {
     sendChatMessage();
   });
   
-  // Handle Enter key press
-  chatInput.addEventListener('keypress', (event) => {
-    if (event.key === 'Enter') {
+  // Send message on Enter key press
+  chatInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
       sendChatMessage();
     }
   });
   
-  // Prevent input from losing focus when clicking elsewhere
-  chatInput.addEventListener('blur', () => {
-    // Small delay to allow click events to process
-    setTimeout(() => {
-      if (document.activeElement !== chatInput) {
-        // Focus was lost to something other than the input
-      }
-    }, 100);
+  // Focus chat input with Tab key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab' && !e.shiftKey) {
+      e.preventDefault();
+      chatInput.focus();
+    }
   });
-  
-  console.log('💬 Chat system initialized');
 }
 
 function sendChatMessage() {
@@ -74,5 +70,4 @@ function sendChatMessage() {
   
   // Clear input
   chatInput.value = '';
-  chatInput.focus();
 }

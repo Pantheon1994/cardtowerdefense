@@ -78,6 +78,11 @@ const TOWER_TYPES = {
     name: 'Ténèbres',
     emoji: '🌑',
     color: '#2c3e50'
+  },
+  ANTI_HEAL: {
+    name: 'Anti-Régénération',
+    emoji: '🚫',
+    color: '#e74c3c'
   }
 };
 
@@ -97,7 +102,8 @@ const ENEMY_TYPES = {
   ARMORED: 'armored',
   FAST: 'fast',
   MAGICAL: 'magical',
-  INVISIBLE: 'invisible'
+  INVISIBLE: 'invisible',
+  HEALER: 'healer'
 };
 
 // Modes de ciblage des tours

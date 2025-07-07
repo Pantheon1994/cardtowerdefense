@@ -98,6 +98,14 @@ const TOWER_TYPES = {
     attackSpeed: 0.5, // Attaque lentement (0.5/sec)
     range: 100,
     effect: 'none' // Pas d'effet spécial
+  },
+  ANTI_HEAL: {
+    name: 'Anti-Régénération',
+    emoji: '🚫',
+    baseDamage: 20, // Dégâts modérés
+    attackSpeed: 1.2, // 1.2 attaque par seconde
+    range: 120,
+    effect: 'anti_heal' // Annule les soins pendant 5 secondes
   }
 };
 
@@ -141,7 +149,8 @@ const ENEMY_TYPES = {
   ARMORED: 'armored',
   FAST: 'fast',
   MAGICAL: 'magical',
-  INVISIBLE: 'invisible'
+  INVISIBLE: 'invisible',
+  HEALER: 'healer' // Unité qui soigne les alliés
 };
 
 module.exports = {
