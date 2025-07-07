@@ -27,8 +27,20 @@ class GameClient {
     });
 
     // Canvas click for tower placement
-    document.getElementById('gameCanvas').addEventListener('click', (e) => {
+    const canvas = document.getElementById('gameCanvas');
+    canvas.addEventListener('click', (e) => {
       this.handleCanvasClick(e);
+    });
+    
+    // Mouse move for preview hitbox
+    canvas.addEventListener('mousemove', (e) => {
+      this.handleCanvasMouseMove(e);
+    });
+    
+    // Right click to cancel placement
+    canvas.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      this.cancelPlacement();
     });
   }
 
@@ -252,6 +264,8 @@ class GameClient {
   }
 
   selectInventoryCard(card) {
+    console.log('🎯 Selecting card:', card.name, 'type:', card.type);
+    
     // Remove previous selection
     document.querySelectorAll('.inventory-card').forEach(el => {
       el.classList.remove('selected');
@@ -260,6 +274,13 @@ class GameClient {
     // Select new card
     event.target.closest('.inventory-card').classList.add('selected');
     this.selectedCard = card;
+    
+    // Activer le mode placement si c'est une tour
+    if (card.type === 'tower') {
+      console.log('🏗️ Activating tower placement mode');
+      this.renderer.startTowerPlacement();
+      document.body.style.cursor = 'crosshair';
+    }
   }
 
   setReady() {
@@ -285,34 +306,18 @@ class GameClient {
   placeTower(x, y) {
     if (!this.selectedCard || this.selectedCard.type !== 'tower') return;
 
-    // Check if position is in a valid tower zone or snap to nearest one
-    const nearestZone = this.renderer.getNearestTowerZone(x, y);
+    // Utiliser le système de grille pour obtenir la position valide
+    const snappedPosition = this.renderer.getSnappedPosition(x, y);
     
-    if (!nearestZone || !this.renderer.isClickInTowerZone(x, y)) {
-      // If not in a zone, try to snap to the nearest zone if it's close enough
-      if (nearestZone) {
-        const distance = Math.sqrt((x - nearestZone.x) ** 2 + (y - nearestZone.y) ** 2);
-        if (distance < 50) { // 50px tolerance for snapping
-          x = nearestZone.x;
-          y = nearestZone.y;
-        } else {
-          alert('Vous devez placer la tour dans une zone verte le long du chemin');
-          return;
-        }
-      } else {
-        alert('Vous devez placer la tour dans une zone verte le long du chemin');
-        return;
-      }
-    } else {
-      // Snap to center of the zone
-      x = nearestZone.x;
-      y = nearestZone.y;
+    if (!snappedPosition) {
+      alert('Position invalide ! Placez la tour sur une case verte.');
+      return;
     }
 
     this.socket.emit(GAME_EVENTS.PLACE_TOWER, {
       cardId: this.selectedCard.id,
-      x: x,
-      y: y
+      x: snappedPosition.x,
+      y: snappedPosition.y
     });
 
     this.clearSelection();
@@ -350,6 +355,8 @@ class GameClient {
 
   clearSelection() {
     this.selectedCard = null;
+    this.renderer.stopTowerPlacement();
+    document.body.style.cursor = 'default';
     document.querySelectorAll('.inventory-card').forEach(el => {
       el.classList.remove('selected');
     });
@@ -392,6 +399,26 @@ class GameClient {
       case GAME_PHASES.WAVE_ACTIVE: return 'Vague en cours';
       case GAME_PHASES.GAME_OVER: return 'Fin de partie';
       default: return phase;
+    }
+  }
+
+  handleCanvasMouseMove(event) {
+    if (!this.selectedCard || this.selectedCard.type !== 'tower') return;
+    
+    const canvas = event.target;
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    
+    console.log('🖱️ Mouse move - selectedCard:', this.selectedCard?.name, 'pos:', x, y);
+    
+    // Mettre à jour la position de prévisualisation
+    this.renderer.updatePreviewPosition(x, y);
+  }
+
+  cancelPlacement() {
+    if (this.selectedCard) {
+      this.clearSelection();
     }
   }
 }

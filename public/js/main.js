@@ -7,8 +7,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize game client
   gameClient = new GameClient();
   
-  // Initial render of empty game
-  gameClient.renderer.render(null);
+  // Start continuous render loop
+  function gameLoop() {
+    if (gameClient && gameClient.renderer) {
+      gameClient.renderer.render(gameClient.gameState);
+    }
+    requestAnimationFrame(gameLoop);
+  }
   
-  console.log('✅ Game client initialized');
+  // Start the game loop
+  gameLoop();
+  
+  console.log('✅ Game client initialized with render loop');
 });

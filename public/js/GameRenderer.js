@@ -14,7 +14,7 @@ class GameRenderer {
     ];
     
     // Grid system
-    this.gridCellSize = GRID_CONFIG.CELL_SIZE;
+    this.gridCellSize = 40; // Même valeur que GRID_CONFIG.CELL_SIZE
     this.showGrid = false;
     this.previewPosition = null; // Position de la hitbox de prévisualisation
     this.gameState = null; // Pour accéder aux tours existantes
@@ -665,5 +665,157 @@ class GameRenderer {
     this.ctx.fillText(`Vague ${gameState.currentWave || 1}`, this.canvas.width - 190, 30);
     this.ctx.fillText(`Spawned: ${spawnedCount}/${totalCount}`, this.canvas.width - 190, 45);
     this.ctx.fillText(`À venir: ${remainingCount}`, this.canvas.width - 190, 60);
-}
+  }
+
+  // === GRID SYSTEM ===
+  
+  drawGrid() {
+    const cellSize = this.gridCellSize;
+    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    this.ctx.lineWidth = 1;
+    
+    // Lignes verticales
+    for (let x = 0; x <= this.canvas.width; x += cellSize) {
+      this.ctx.beginPath();
+      this.ctx.moveTo(x, 0);
+      this.ctx.lineTo(x, this.canvas.height);
+      this.ctx.stroke();
+    }
+    
+    // Lignes horizontales
+    for (let y = 0; y <= this.canvas.height; y += cellSize) {
+      this.ctx.beginPath();
+      this.ctx.moveTo(0, y);
+      this.ctx.lineTo(this.canvas.width, y);
+      this.ctx.stroke();
+    }
+  }
+
+  drawPreviewHitbox() {
+    if (!this.previewPosition) return;
+    
+    const gridPos = this.snapToGrid(this.previewPosition.x, this.previewPosition.y);
+    const isValid = this.isValidGridPosition(gridPos.x, gridPos.y);
+    
+    // Couleur selon la validité
+    const color = isValid ? '#00ff00' : '#ff0000';
+    this.ctx.fillStyle = color + 'B3'; // 70% opacity
+    this.ctx.strokeStyle = color;
+    this.ctx.lineWidth = 2;
+    
+    // Dessiner la hitbox
+    const halfSize = this.gridCellSize / 2;
+    this.ctx.fillRect(
+      gridPos.x - halfSize, 
+      gridPos.y - halfSize, 
+      this.gridCellSize, 
+      this.gridCellSize
+    );
+    this.ctx.strokeRect(
+      gridPos.x - halfSize, 
+      gridPos.y - halfSize, 
+      this.gridCellSize, 
+      this.gridCellSize
+    );
+  }
+
+  snapToGrid(x, y) {
+    const cellSize = this.gridCellSize;
+    const gridX = Math.round(x / cellSize) * cellSize;
+    const gridY = Math.round(y / cellSize) * cellSize;
+    return { x: gridX, y: gridY };
+  }
+
+  isValidGridPosition(x, y) {
+    // Vérifier les limites
+    const halfSize = this.gridCellSize / 2;
+    if (x - halfSize < 0 || x + halfSize > this.canvas.width || 
+        y - halfSize < 0 || y + halfSize > this.canvas.height) {
+      return false;
+    }
+    
+    // Vérifier la distance du chemin
+    if (!this.isValidDistanceFromPath(x, y)) {
+      return false;
+    }
+    
+    // Vérifier les tours existantes
+    if (this.gameState && this.gameState.towers) {
+      for (const tower of this.gameState.towers) {
+        const distance = Math.sqrt((tower.x - x) ** 2 + (tower.y - y) ** 2);
+        if (distance < this.gridCellSize) {
+          return false;
+        }
+      }
+    }
+    
+    return true;
+  }
+
+  isValidDistanceFromPath(x, y) {
+    let minDistance = Infinity;
+    
+    for (let i = 0; i < this.path.length - 1; i++) {
+      const point1 = this.path[i];
+      const point2 = this.path[i + 1];
+      const distance = this.distanceToLineSegment(x, y, point1.x, point1.y, point2.x, point2.y);
+      minDistance = Math.min(minDistance, distance);
+    }
+    
+    return minDistance >= 30 && minDistance <= 120; // 30 = PATH_BUFFER
+  }
+
+  distanceToLineSegment(px, py, x1, y1, x2, y2) {
+    const A = px - x1;
+    const B = py - y1;
+    const C = x2 - x1;
+    const D = y2 - y1;
+
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
+    let param = -1;
+    if (lenSq !== 0) {
+      param = dot / lenSq;
+    }
+
+    let xx, yy;
+    if (param < 0) {
+      xx = x1;
+      yy = y1;
+    } else if (param > 1) {
+      xx = x2;
+      yy = y2;
+    } else {
+      xx = x1 + param * C;
+      yy = y1 + param * D;
+    }
+
+    const dx = px - xx;
+    const dy = py - yy;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  // Méthodes publiques pour l'interface
+  startTowerPlacement() {
+    console.log('🎯 Starting tower placement mode');
+    this.showGrid = true;
+  }
+
+  stopTowerPlacement() {
+    console.log('🛑 Stopping tower placement mode');
+    this.showGrid = false;
+    this.previewPosition = null;
+  }
+
+  updatePreviewPosition(x, y) {
+    this.previewPosition = { x, y };
+    console.log('👆 Preview position updated:', x, y, 'showGrid:', this.showGrid, 'previewPos:', this.previewPosition);
+  }
+
+  getSnappedPosition(x, y) {
+    const snapped = this.snapToGrid(x, y);
+    const isValid = this.isValidGridPosition(snapped.x, snapped.y);
+    console.log('📍 Snap check:', { x, y }, '→', snapped, 'valid:', isValid);
+    return isValid ? snapped : null;
+  }
 }

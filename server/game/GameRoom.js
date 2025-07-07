@@ -334,20 +334,25 @@ class GameRoom {
 
     const card = player.inventory[cardIndex];
     
-    // Validate placement position (implement zone checking)
-    if (!this.isValidTowerPlacement(x, y)) {
-      this.io.to(playerId).emit(GAME_EVENTS.ERROR, { message: 'Invalid tower placement' });
+    // Snap to grid côté serveur pour être sûr
+    const GRID_CELL_SIZE = 40;
+    const snappedX = Math.round(x / GRID_CELL_SIZE) * GRID_CELL_SIZE;
+    const snappedY = Math.round(y / GRID_CELL_SIZE) * GRID_CELL_SIZE;
+    
+    // Validate placement position
+    if (!this.isValidTowerPlacement(snappedX, snappedY)) {
+      this.io.to(playerId).emit(GAME_EVENTS.ERROR, { message: 'Position de tour invalide' });
       return;
     }
 
     // Create tower using the Tower class
     const towerId = `tower_${Date.now()}_${Math.random()}`;
-    const tower = new Tower(towerId, card.towerType, x, y, playerId);
+    const tower = new Tower(towerId, card.towerType, snappedX, snappedY, playerId);
 
     this.towers.set(tower.id, tower);
     player.inventory.splice(cardIndex, 1);
 
-    console.log(`Tower ${card.towerType} placed at (${x}, ${y}) by ${player.name}`);
+    console.log(`Tower ${card.towerType} placed at (${snappedX}, ${snappedY}) by ${player.name}`);
     this.broadcastGameState();
   }
 
@@ -387,8 +392,15 @@ class GameRoom {
   }
 
   isValidTowerPlacement(x, y) {
+    const GRID_CELL_SIZE = 40; // Même valeur que côté client
+    const PATH_BUFFER = 30;
+    
     // Récupération du chemin depuis WaveManager
     const path = this.waveManager.getPath();
+    
+    // Snap à la grille côté serveur aussi
+    const gridX = Math.round(x / GRID_CELL_SIZE) * GRID_CELL_SIZE;
+    const gridY = Math.round(y / GRID_CELL_SIZE) * GRID_CELL_SIZE;
     
     // Vérifier que la position n'est pas trop proche du chemin
     let minDistanceToPath = Infinity;
@@ -397,31 +409,33 @@ class GameRoom {
       const point2 = path[i + 1];
       
       // Distance du point à la ligne de chemin
-      const distance = this.distanceToLineSegment(x, y, point1.x, point1.y, point2.x, point2.y);
+      const distance = this.distanceToLineSegment(gridX, gridY, point1.x, point1.y, point2.x, point2.y);
       minDistanceToPath = Math.min(minDistanceToPath, distance);
     }
     
-    // La tour doit être à au moins 30px du chemin mais pas trop loin (max 80px)
-    if (minDistanceToPath < 30) {
+    // La tour doit être à au moins 30px du chemin mais pas trop loin (max 120px)
+    if (minDistanceToPath < PATH_BUFFER) {
       console.log(`Tower placement rejected: too close to path (distance: ${minDistanceToPath})`);
       return false;
     }
     
-    if (minDistanceToPath > 80) {
+    if (minDistanceToPath > 120) {
       console.log(`Tower placement rejected: too far from path (distance: ${minDistanceToPath})`);
       return false;
     }
     
     // Vérifier les limites du canvas avec plus de marge
-    if (x < 40 || x > 760 || y < 40 || y > 560) {
+    const halfSize = GRID_CELL_SIZE / 2;
+    if (gridX - halfSize < 0 || gridX + halfSize > 800 || 
+        gridY - halfSize < 0 || gridY + halfSize > 600) {
       console.log(`Tower placement rejected: out of bounds`);
       return false;
     }
     
     // Vérifier les conflits avec les tours existantes
     for (const tower of this.towers.values()) {
-      const distance = Math.sqrt((tower.x - x) ** 2 + (tower.y - y) ** 2);
-      if (distance < 35) { // Distance minimale entre tours réduite
+      const distance = Math.sqrt((tower.x - gridX) ** 2 + (tower.y - gridY) ** 2);
+      if (distance < GRID_CELL_SIZE) { // Une case de distance minimum
         console.log(`Tower placement rejected: too close to existing tower`);
         return false;
       }
