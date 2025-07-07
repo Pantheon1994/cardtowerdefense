@@ -28,6 +28,7 @@
      * **Build Command**: `npm install`
      * **Start Command**: `npm start`
      * **Environment**: `Node`
+     * **Publish Directory**: **(LAISSER VIDE ou mettre ".")**
    - Cliquez "Create Web Service"
 
 3. **Accès au jeu**
@@ -68,6 +69,11 @@ Une fois déployé :
 - Vérifiez que `package.json` est à la racine
 - Assurez-vous que `npm start` fonctionne localement
 - Consultez les logs de la plateforme de déploiement
+
+### Si vous obtenez "Not Found" :
+- Vérifiez que votre `server.js` contient bien les routes pour servir `index.html`
+- Assurez-vous que le dossier `public` contient bien `index.html`
+- Testez localement avec `npm start` avant de déployer
 
 ### Si les amis ne peuvent pas se connecter :
 - Vérifiez que l'URL est correcte (https://)

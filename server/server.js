@@ -19,6 +19,16 @@ const io = socketIo(server, {
 // Serve static files from public directory
 app.use(express.static(path.join(__dirname, '../public')));
 
+// Route for root path - serve index.html
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
+// Catch all other routes and redirect to index.html (for SPA behavior)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
 // Game rooms storage
 const gameRooms = new Map();
 
