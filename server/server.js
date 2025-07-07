@@ -13,7 +13,9 @@ const io = socketIo(server, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"]
-  }
+  },
+  serveClient: true,
+  path: '/socket.io'
 });
 
 // Serve static files from public directory

@@ -75,6 +75,12 @@ Une fois déployé :
 - Assurez-vous que le dossier `public` contient bien `index.html`
 - Testez localement avec `npm start` avant de déployer
 
+### Si Socket.io ne se charge pas (erreur MIME) :
+- Le fichier `socket.io.js` doit être dans le dossier `public`
+- Lancez `npm run build` pour copier le fichier Socket.io
+- Vérifiez que `<script src="socket.io.js"></script>` est dans `index.html`
+- Consultez les logs Render pour voir les erreurs serveur
+
 ### Si les amis ne peuvent pas se connecter :
 - Vérifiez que l'URL est correcte (https://)
 - Testez d'abord vous-même sur l'URL de déploiement
