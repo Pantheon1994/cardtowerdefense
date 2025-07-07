@@ -33,9 +33,24 @@ app.use((req, res, next) => {
 // Serve static files from public directory FIRST
 app.use(express.static(path.join(__dirname, '../public'), {
   setHeaders: (res, filePath) => {
-    const mimeType = mime.lookup(filePath);
-    if (mimeType) {
-      res.setHeader('Content-Type', mimeType);
+    console.log(`📁 Setting headers for: ${filePath}`);
+    
+    // Force correct MIME types for specific extensions
+    if (filePath.endsWith('.js')) {
+      console.log('🔧 Setting JS MIME type');
+      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    } else if (filePath.endsWith('.css')) {
+      console.log('🔧 Setting CSS MIME type');
+      res.setHeader('Content-Type', 'text/css; charset=utf-8');
+    } else if (filePath.endsWith('.html')) {
+      console.log('🔧 Setting HTML MIME type');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    } else {
+      const mimeType = mime.lookup(filePath);
+      if (mimeType) {
+        console.log(`🔧 Setting MIME type: ${mimeType}`);
+        res.setHeader('Content-Type', mimeType);
+      }
     }
   }
 }));
