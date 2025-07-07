@@ -25,10 +25,8 @@ const io = socketIo(server, {
     origin: "*",
     methods: ["GET", "POST"]
   },
-  serveClient: true,
-  path: '/socket.io',
-  transports: ['websocket', 'polling'],
-  allowEIO3: true
+  serveClient: false,
+  path: '/socket.io'
 });
 
 // Game rooms storage
