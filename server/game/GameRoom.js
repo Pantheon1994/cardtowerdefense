@@ -32,7 +32,7 @@ class GameRoom {
     const player = {
       id: socketId,
       name: name,
-      inventory: [],
+      inventory: this.getStartingTowers(), // Give starting towers
       isReady: false,
       currentCards: []
     };
@@ -733,8 +733,8 @@ class GameRoom {
       return;
     }
 
-    // Sanitize message (basic filtering)
-    const sanitizedMessage = message.trim().slice(0, 200); // Limit to 200 characters
+    // Sanitize message (sécurisation XSS côté serveur)
+    const sanitizedMessage = this.sanitizeMessage(message.trim()).slice(0, 200); // Limit to 200 characters
     if (sanitizedMessage.length === 0) {
       return;
     }
@@ -751,6 +751,19 @@ class GameRoom {
 
     // Broadcast to all players in the room
     this.io.to(this.id).emit(GAME_EVENTS.CHAT_MESSAGE_BROADCAST, chatMessage);
+  }
+
+  sanitizeMessage(message) {
+    // Double sécurisation côté serveur contre l'injection XSS
+    return message
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;')
+      .replace(/\//g, '&#x2F;')
+      .replace(/`/g, '&#x60;')
+      .replace(/=/g, '&#x3D;');
   }
 
   // Debug methods
@@ -822,6 +835,40 @@ class GameRoom {
     this.io.to(this.id).emit(GAME_EVENTS.GAME_STATE_UPDATE, this.getGameState());
     
     console.log(`✅ Game reset complete in room ${this.id}`);
+  }
+
+  getStartingTowers() {
+    // Create one tower card of each type for starting inventory
+    const startingTowers = [];
+    
+    // Create a tower card for each tower type
+    Object.keys(TOWER_TYPES).forEach(towerType => {
+      const towerData = TOWER_TYPES[towerType];
+      startingTowers.push({
+        id: `starter_${towerType}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        type: 'tower',
+        towerType: towerType,
+        name: towerData.name,
+        emoji: towerData.emoji,
+        description: `Tour ${towerData.name} - ${this.getEffectDescription(towerData.effect)}`
+      });
+    });
+    
+    console.log(`🎁 Creating starting inventory with ${startingTowers.length} towers:`, startingTowers.map(t => t.name));
+    return startingTowers;
+  }
+
+  getEffectDescription(effect) {
+    switch (effect) {
+      case 'dot': return 'Dégâts sur la durée';
+      case 'slow': return 'Ralentit les ennemis';
+      case 'armor_reduction': return 'Réduit l\'armure';
+      case 'aoe': return 'Dégâts de zone';
+      case 'vortex': return 'Attire les ennemis';
+      case 'anti_heal': return 'Annule les soins';
+      case 'none': return 'Dégâts purs élevés';
+      default: return 'Effet spécial';
+    }
   }
 }
 

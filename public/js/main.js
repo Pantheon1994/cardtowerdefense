@@ -1,5 +1,6 @@
 // Main entry point
 let gameClient;
+let isChatActive = false; // Track if chat is active/focused
 
 document.addEventListener('DOMContentLoaded', () => {
   console.log('🏰 Card Tower Defense - Client Starting...');
@@ -9,6 +10,9 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Setup chat functionality
   setupChatInterface();
+  
+  // Setup keyboard controls (camera movement)
+  setupKeyboardControls();
   
   // Start continuous render loop
   function gameLoop() {
@@ -24,6 +28,49 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('✅ Game client initialized with render loop');
 });
 
+function setupKeyboardControls() {
+  // Camera movement with arrow keys only (not ZQSD/WASD)
+  document.addEventListener('keydown', (e) => {
+    // Block all keyboard shortcuts when chat is active
+    if (isChatActive) {
+      return;
+    }
+
+    // Handle camera movement with arrow keys
+    if (gameClient && gameClient.renderer) {
+      const moveSpeed = 20;
+      
+      switch(e.key) {
+        case 'ArrowUp':
+          e.preventDefault();
+          gameClient.renderer.moveCamera(0, -moveSpeed);
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          gameClient.renderer.moveCamera(0, moveSpeed);
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          gameClient.renderer.moveCamera(-moveSpeed, 0);
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          gameClient.renderer.moveCamera(moveSpeed, 0);
+          break;
+      }
+    }
+
+    // Focus chat input with Tab key (only if chat is not active)
+    if (e.key === 'Tab' && !e.shiftKey) {
+      e.preventDefault();
+      const chatInput = document.getElementById('chatInput');
+      if (chatInput) {
+        chatInput.focus();
+      }
+    }
+  });
+}
+
 function setupChatInterface() {
   const chatInput = document.getElementById('chatInput');
   const chatSendBtn = document.getElementById('chatSendBtn');
@@ -33,41 +80,48 @@ function setupChatInterface() {
     return;
   }
   
+  // Track chat focus state
+  chatInput.addEventListener('focus', () => {
+    isChatActive = true;
+    chatInput.parentElement.classList.add('chat-active');
+  });
+  
+  chatInput.addEventListener('blur', () => {
+    isChatActive = false;
+    chatInput.parentElement.classList.remove('chat-active');
+  });
+  
   // Send message on button click
   chatSendBtn.addEventListener('click', () => {
     sendChatMessage();
   });
   
-  // Send message on Enter key press
-  chatInput.addEventListener('keypress', (e) => {
+  // Send message on Enter key press, close chat on Escape
+  chatInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
+      e.preventDefault();
       sendChatMessage();
-    }
-  });
-  
-  // Focus chat input with Tab key
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Tab' && !e.shiftKey) {
+      chatInput.blur(); // Unfocus chat after sending
+    } else if (e.key === 'Escape') {
       e.preventDefault();
-      chatInput.focus();
+      chatInput.blur(); // Unfocus chat
+    }
+    // Block ZQSD keys when chat is active
+    else if (['z', 'q', 's', 'd', 'Z', 'Q', 'S', 'D'].includes(e.key)) {
+      // Let the keys work normally in chat input (for typing)
+      // They won't trigger camera movement because isChatActive is true
     }
   });
 
-  // Add debug key handlers
-  document.addEventListener('keydown', (e) => {
-    // Don't trigger debug keys if chat is focused
-    if (document.activeElement === chatInput) {
-      return;
-    }
-
-    if (e.key === '5') {
-      // Skip to wave 5
-      e.preventDefault();
+  // Chat toggle functionality
+  const chatToggleBtn = document.getElementById('chatToggleBtn');
+  if (chatToggleBtn) {
+    chatToggleBtn.addEventListener('click', () => {
       if (gameClient) {
-        gameClient.debugSkipToWave(5);
+        gameClient.toggleChat();
       }
-    }
-  });
+    });
+  }
 }
 
 function sendChatMessage() {

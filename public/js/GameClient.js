@@ -42,6 +42,16 @@ class GameClient {
       e.preventDefault();
       this.cancelPlacement();
     });
+
+    // Chat toggle button
+    document.getElementById('chatToggleBtn').addEventListener('click', () => {
+      this.toggleChat();
+    });
+
+    // Inventory toggle button
+    document.getElementById('inventoryToggle')?.addEventListener('click', () => {
+      this.toggleInventory();
+    });
   }
 
   setupSocketEvents() {
@@ -70,6 +80,11 @@ class GameClient {
         this.gameState = data;
         this.updateUI();
         this.renderer.render(data, this.selectedCard);
+        
+        // Update chat visibility based on player count
+        if (data.players) {
+          this.updateChatVisibility(data.players.length);
+        }
       } else {
         // Partial update (enemies, baseHealth, projectiles)
         console.log('🔄 GAME_STATE_UPDATE (partial) received:', {
@@ -303,21 +318,34 @@ class GameClient {
         });
         inventoryCards.appendChild(cardElement);
       });
+      
+      // Auto-expand inventory if it was collapsed and now has cards
+      const inventory = document.getElementById('playerInventory');
+      if (inventory && inventory.classList.contains('collapsed') && currentPlayer.inventory.length <= 6) {
+        this.toggleInventory();
+      }
     } else {
       console.log('📦 No cards in inventory');
-      inventoryCards.innerHTML = '<p style="text-align: center; color: #888;">Aucune carte dans l\'inventaire</p>';
+      inventoryCards.innerHTML = '<p style="text-align: center; color: #888; font-size: 12px; margin: 0;">Inventaire vide</p>';
+      
+      // Auto-collapse inventory when empty
+      const inventory = document.getElementById('playerInventory');
+      if (inventory && !inventory.classList.contains('collapsed')) {
+        this.toggleInventory();
+      }
     }
   }
 
   updatePhaseUI() {
     if (!this.gameState || !this.gameState.players) return;
-    
     const cardSelection = document.getElementById('cardSelection');
     const wavePreview = document.getElementById('wavePreview');
     const startWaveBtn = document.getElementById('startWaveBtn');
     const currentPlayer = this.gameState.players.find(p => p.id === this.playerId);
-
     switch (this.gameState.phase) {
+      case 'CARD_SELECTION':
+        this.showCardSelection();
+        break;
       case GAME_PHASES.LOBBY:
         // Show cards in lobby only if player has cards to choose AND hasn't selected one yet
         if (currentPlayer && currentPlayer.currentCards && currentPlayer.currentCards.length > 0) {
@@ -353,6 +381,29 @@ class GameClient {
         wavePreview.classList.add('hidden');
         break;
     }
+  }
+
+  showCardSelection() {
+    const cardSelection = document.getElementById('cardSelection');
+    const cardOptions = document.getElementById('cardOptions');
+    const currentPlayer = this.gameState.players.find(p => p.id === this.playerId);
+    
+    cardOptions.innerHTML = '';
+    cardSelection.classList.remove('hidden');
+    cardSelection.scrollIntoView({behavior: 'smooth', block: 'center'});
+
+    currentPlayer.currentCards.forEach((card, index) => {
+      const cardElement = this.createCardElement(card);
+      cardElement.addEventListener('click', () => {
+        // Highlight selection
+        cardOptions.querySelectorAll('.card').forEach(el => el.classList.remove('selected'));
+        cardElement.classList.add('selected');
+        setTimeout(() => {
+          this.selectCard(index);
+        }, 220); // Delay for animation
+      });
+      cardOptions.appendChild(cardElement);
+    });
   }
 
   checkAndShowCards() {
@@ -458,11 +509,20 @@ class GameClient {
     event.target.closest('.inventory-card').classList.add('selected');
     this.selectedCard = card;
     
-    // Activer le mode placement si c'est une tour
+    // Change cursor based on card type
     if (card.type === 'tower') {
       console.log('🏗️ Activating tower placement mode');
       this.renderer.startTowerPlacement();
       document.body.style.cursor = 'crosshair';
+      document.body.title = 'Cliquez pour placer la tour';
+    } else if (card.type === 'effect') {
+      console.log('✨ Activating effect application mode');
+      document.body.style.cursor = 'pointer';
+      document.body.title = 'Cliquez sur une tour pour appliquer l\'effet';
+      // Add a visual indicator class to the body
+      document.body.classList.add('applying-effect');
+      // Show instructions
+      this.showEffectApplicationInstructions(card.name);
     }
   }
 
@@ -549,6 +609,9 @@ class GameClient {
     this.selectedCard = null;
     this.renderer.stopTowerPlacement();
     document.body.style.cursor = 'default';
+    document.body.title = '';
+    document.body.classList.remove('applying-effect');
+    this.hideEffectApplicationInstructions();
     document.querySelectorAll('.inventory-card').forEach(el => {
       el.classList.remove('selected');
     });
@@ -960,8 +1023,22 @@ class GameClient {
       return;
     }
 
-    console.log('💬 Sending chat message:', trimmedMessage);
-    this.socket.emit(GAME_EVENTS.CHAT_MESSAGE, { message: trimmedMessage });
+    // Sécurisation XSS : échapper les caractères spéciaux
+    const sanitizedMessage = this.sanitizeMessage(trimmedMessage);
+    
+    console.log('💬 Sending chat message:', sanitizedMessage);
+    this.socket.emit(GAME_EVENTS.CHAT_MESSAGE, { message: sanitizedMessage });
+  }
+
+  sanitizeMessage(message) {
+    // Échapper les caractères HTML dangereux pour éviter l'injection XSS
+    return message
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;')
+      .replace(/\//g, '&#x2F;');
   }
 
   displayChatMessage(data) {
@@ -972,14 +1049,90 @@ class GameClient {
     messageDiv.className = 'chat-message';
     
     const timestamp = new Date(data.timestamp).toLocaleTimeString();
-    messageDiv.innerHTML = `
-      <span class="chat-timestamp">[${timestamp}]</span>
-      <span class="chat-player">${data.playerName}:</span>
-      <span class="chat-text">${data.message}</span>
-    `;
+    
+    // Création sécurisée du contenu du message
+    const timestampSpan = document.createElement('span');
+    timestampSpan.className = 'chat-timestamp';
+    timestampSpan.textContent = `[${timestamp}]`;
+    
+    const playerSpan = document.createElement('span');
+    playerSpan.className = 'chat-player';
+    playerSpan.textContent = `${data.playerName}:`;
+    
+    const textSpan = document.createElement('span');
+    textSpan.className = 'chat-text';
+    textSpan.textContent = data.message; // Utilisation de textContent pour éviter l'injection HTML
+    
+    messageDiv.appendChild(timestampSpan);
+    messageDiv.appendChild(document.createTextNode(' '));
+    messageDiv.appendChild(playerSpan);
+    messageDiv.appendChild(document.createTextNode(' '));
+    messageDiv.appendChild(textSpan);
     
     chatMessages.appendChild(messageDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  toggleChat() {
+    const chatContainer = document.getElementById('chatContainer');
+    const chatToggleBtn = document.getElementById('chatToggleBtn');
+    
+    if (!chatContainer || !chatToggleBtn) return;
+    
+    const isMinimized = chatContainer.classList.contains('minimized');
+    
+    if (isMinimized) {
+      // Ouvrir le chat
+      chatContainer.classList.remove('minimized');
+      chatToggleBtn.textContent = '−';
+      chatToggleBtn.title = 'Fermer le chat';
+    } else {
+      // Fermer le chat
+      chatContainer.classList.add('minimized');
+      chatToggleBtn.textContent = '+';
+      chatToggleBtn.title = 'Ouvrir le chat';
+    }
+  }
+
+  toggleInventory() {
+    const inventory = document.getElementById('playerInventory');
+    const toggleBtn = document.getElementById('inventoryToggle');
+    
+    if (!inventory || !toggleBtn) return;
+    
+    const isCollapsed = inventory.classList.contains('collapsed');
+    
+    if (isCollapsed) {
+      // Expand inventory
+      inventory.classList.remove('collapsed');
+      toggleBtn.textContent = '−';
+      toggleBtn.title = 'Réduire l\'inventaire';
+    } else {
+      // Collapse inventory
+      inventory.classList.add('collapsed');
+      toggleBtn.textContent = '+';
+      toggleBtn.title = 'Agrandir l\'inventaire';
+    }
+  }
+
+  updateChatVisibility(playerCount) {
+    const chatContainer = document.getElementById('chatContainer');
+    if (!chatContainer) return;
+    
+    // Fermer automatiquement le chat si le joueur est seul
+    if (playerCount <= 1) {
+      chatContainer.classList.add('minimized');
+      const chatToggleBtn = document.getElementById('chatToggleBtn');
+      if (chatToggleBtn) {
+        chatToggleBtn.textContent = '+';
+        chatToggleBtn.title = 'Ouvrir le chat';
+      }
+    }
+    // Optionnel : ouvrir automatiquement quand d'autres joueurs rejoignent
+    else if (playerCount > 1 && chatContainer.classList.contains('minimized')) {
+      // On peut choisir de l'ouvrir automatiquement ou laisser le joueur décider
+      // Pour l'instant, on laisse fermé et le joueur peut l'ouvrir manuellement
+    }
   }
 
   // Debug methods
@@ -1047,6 +1200,32 @@ class GameClient {
         notification.parentNode.removeChild(notification);
       }
     }, 4000);
+  }
+
+  // Show instruction overlay when applying effect
+  showEffectApplicationInstructions(effectName) {
+    // Remove any existing instructions
+    this.hideEffectApplicationInstructions();
+    
+    const instruction = document.createElement('div');
+    instruction.id = 'effect-application-instruction';
+    instruction.className = 'effect-application-instruction';
+    instruction.innerHTML = `
+      <div class="instruction-content">
+        <h3>✨ Application d'effet</h3>
+        <p>Cliquez sur une tour pour lui appliquer l'effet : <strong>${effectName}</strong></p>
+        <p><small>Clic droit pour annuler</small></p>
+      </div>
+    `;
+    
+    document.body.appendChild(instruction);
+  }
+
+  hideEffectApplicationInstructions() {
+    const existing = document.getElementById('effect-application-instruction');
+    if (existing) {
+      existing.remove();
+    }
   }
 }
 

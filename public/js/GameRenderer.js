@@ -39,9 +39,8 @@ class GameRenderer {
       color: '#FFD700'
     });
     
-    // Camera controls
+    // Camera controls (arrow keys only)
     this.keys = {
-      w: false, a: false, s: false, d: false,
       ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false
     };
     
@@ -59,15 +58,17 @@ class GameRenderer {
   }
 
   setupCameraControls() {
-    // Keyboard event listeners for camera movement
+    // Keyboard event listeners for camera movement (arrow keys only)
     document.addEventListener('keydown', (e) => {
-      if (e.key in this.keys) {
+      // Only handle arrow keys and only if chat is not active
+      if (e.key in this.keys && !this.isChatActive()) {
         this.keys[e.key] = true;
         e.preventDefault();
       }
     });
 
     document.addEventListener('keyup', (e) => {
+      // Only handle arrow keys
       if (e.key in this.keys) {
         this.keys[e.key] = false;
         e.preventDefault();
@@ -115,14 +116,21 @@ class GameRenderer {
   }
 
   updateCamera() {
-    // Handle keyboard movement
+    // Handle keyboard movement (arrow keys only)
     const moveSpeed = this.camera.speed;
     
-    if (this.keys.w || this.keys.ArrowUp) this.camera.y -= moveSpeed;
-    if (this.keys.s || this.keys.ArrowDown) this.camera.y += moveSpeed;
-    if (this.keys.a || this.keys.ArrowLeft) this.camera.x -= moveSpeed;
-    if (this.keys.d || this.keys.ArrowRight) this.camera.x += moveSpeed;
+    if (this.keys.ArrowUp) this.camera.y -= moveSpeed;
+    if (this.keys.ArrowDown) this.camera.y += moveSpeed;
+    if (this.keys.ArrowLeft) this.camera.x -= moveSpeed;
+    if (this.keys.ArrowRight) this.camera.x += moveSpeed;
     
+    this.constrainCamera();
+  }
+
+  // Method to move camera programmatically (for external controls)
+  moveCamera(deltaX, deltaY) {
+    this.camera.x += deltaX;
+    this.camera.y += deltaY;
     this.constrainCamera();
   }
 
@@ -747,6 +755,9 @@ class GameRenderer {
     const towerType = TOWER_TYPES[tower.type];
     if (!towerType) return;
 
+    // Check if we're applying an effect (show highlight)
+    const isApplyingEffect = document.body.classList.contains('applying-effect');
+
     // Get quality color
     const qualityColors = {
       0: '#696969', // Normal (gris)
@@ -755,6 +766,16 @@ class GameRenderer {
       3: '#FFD700'  // Legendary (or)
     };
     const qualityColor = qualityColors[tower.qualityLevel] || '#696969';
+
+    // Draw highlight for effect application
+    if (isApplyingEffect) {
+      this.ctx.strokeStyle = '#ffc107';
+      this.ctx.lineWidth = 3;
+      this.ctx.setLineDash([5, 5]);
+      this.ctx.strokeRect(tower.x - 18, tower.y - 18, 36, 36);
+      this.ctx.setLineDash([]);
+      this.ctx.lineWidth = 1;
+    }
 
     // Draw tower base with quality color
     this.ctx.fillStyle = qualityColor;
@@ -1428,5 +1449,11 @@ class GameRenderer {
     const isValid = this.isValidGridPosition(snapped.x, snapped.y);
     console.log('📍 Snap check:', { x, y }, '→', snapped, 'valid:', isValid);
     return isValid ? snapped : null;
+  }
+
+  // Check if chat is currently active/focused
+  isChatActive() {
+    const chatInput = document.getElementById('chatInput');
+    return chatInput && document.activeElement === chatInput;
   }
 }
