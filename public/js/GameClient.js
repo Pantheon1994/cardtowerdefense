@@ -141,6 +141,12 @@ class GameClient {
       console.log('💬 Chat message received:', data);
       this.displayChatMessage(data);
     });
+
+    // Handle map expansion
+    this.socket.on(GAME_EVENTS.MAP_EXPANDED, (data) => {
+      console.log('🗺️ Map expanded:', data);
+      this.handleMapExpansion(data);
+    });
   }
 
   joinGame() {
@@ -160,6 +166,36 @@ class GameClient {
     });
     
     console.log('📤 JOIN_ROOM event sent');
+  }
+
+  handleMapExpansion(data) {
+    console.log('🗺️ Handling map expansion:', data);
+    
+    const { mapDimensions, newPath, destroyedTowers, allPaths } = data;
+    
+    // Update renderer with new map dimensions
+    if (this.renderer && mapDimensions) {
+      this.renderer.updateMapDimensions(mapDimensions);
+      if (newPath) {
+        this.renderer.addNewPath(newPath);
+      }
+      if (allPaths) {
+        this.renderer.updateAllPaths(allPaths);
+      }
+    }
+
+    // Show notification about destroyed towers
+    if (destroyedTowers && destroyedTowers.length > 0) {
+      this.showDestroyedTowersNotification(destroyedTowers);
+    }
+
+    // Show map expansion notification
+    if (newPath) {
+      this.showMapExpansionNotification(newPath);
+    }
+
+    // Update game state to trigger UI refresh
+    this.updateUI();
   }
 
   showGameScreen(roomId) {
@@ -438,8 +474,13 @@ class GameClient {
   handleCanvasClick(event) {
     const canvas = event.target;
     const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+    const screenX = event.clientX - rect.left;
+    const screenY = event.clientY - rect.top;
+    
+    // Convert screen coordinates to world coordinates
+    const worldPos = this.renderer.screenToWorld(screenX, screenY);
+    const x = worldPos.x;
+    const y = worldPos.y;
 
     // If no card is selected, check for tower inspection
     if (!this.selectedCard) {
@@ -548,12 +589,17 @@ class GameClient {
     
     const canvas = event.target;
     const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+    const screenX = event.clientX - rect.left;
+    const screenY = event.clientY - rect.top;
     
-    console.log('🖱️ Mouse move - selectedCard:', this.selectedCard?.name, 'pos:', x, y);
+    // Convert screen coordinates to world coordinates
+    const worldPos = this.renderer.screenToWorld(screenX, screenY);
+    const x = worldPos.x;
+    const y = worldPos.y;
     
-    // Mettre à jour la position de prévisualisation
+    console.log('🖱️ Mouse move - selectedCard:', this.selectedCard?.name, 'world pos:', x, y);
+    
+    // Mettre à jour la position de prévisualisation avec les coordonnées monde
     this.renderer.updatePreviewPosition(x, y);
   }
 
@@ -920,33 +966,87 @@ class GameClient {
 
   displayChatMessage(data) {
     const chatMessages = document.getElementById('chatMessages');
-    if (!chatMessages) {
-      return;
-    }
+    if (!chatMessages) return;
 
-    const messageElement = document.createElement('div');
-    messageElement.className = 'chat-message';
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'chat-message';
     
     const timestamp = new Date(data.timestamp).toLocaleTimeString();
-    const isOwnMessage = data.playerId === this.socket.id;
-    
-    messageElement.innerHTML = `
-      <div class="chat-message-content ${isOwnMessage ? 'own-message' : ''}">
-        <span class="chat-timestamp">${timestamp}</span>
-        <span class="chat-player-name">${data.playerName}:</span>
-        <span class="chat-message-text">${data.message}</span>
-      </div>
+    messageDiv.innerHTML = `
+      <span class="chat-timestamp">[${timestamp}]</span>
+      <span class="chat-player">${data.playerName}:</span>
+      <span class="chat-text">${data.message}</span>
     `;
-
-    chatMessages.appendChild(messageElement);
     
-    // Auto-scroll to bottom
+    chatMessages.appendChild(messageDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  // Debug methods
+  debugSkipToWave(waveNumber) {
+    console.log(`🔧 Debug: Skipping to wave ${waveNumber}`);
+    this.socket.emit(GAME_EVENTS.DEBUG_SKIP_TO_WAVE, { waveNumber });
     
-    // Remove old messages to prevent memory buildup (keep last 100)
-    while (chatMessages.children.length > 100) {
-      chatMessages.removeChild(chatMessages.firstChild);
-    }
+    // Show debug notification
+    this.showDebugNotification(`Saut vers la vague ${waveNumber}`);
+  }
+
+  showDebugNotification(message) {
+    const notification = document.createElement('div');
+    notification.className = 'map-expansion-notification debug';
+    notification.innerHTML = `
+      <h3>🔧 Mode Debug</h3>
+      <p>${message}</p>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 3000);
+  }
+
+  showDestroyedTowersNotification(destroyedTowers) {
+    const notification = document.createElement('div');
+    notification.className = 'map-expansion-notification destroyed-towers';
+    notification.innerHTML = `
+      <h3>💥 Tours détruites!</h3>
+      <p>L'expansion de la map a détruit ${destroyedTowers.length} tour(s):</p>
+      <ul>
+        ${destroyedTowers.map(tower => `<li>${tower.type || 'Tour'} en (${Math.round(tower.x)}, ${Math.round(tower.y)})</li>`).join('')}
+      </ul>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 5000);
+  }
+
+  showMapExpansionNotification(newPath) {
+    const notification = document.createElement('div');
+    notification.className = 'map-expansion-notification new-path';
+    notification.innerHTML = `
+      <h3>🗺️ Carte agrandie!</h3>
+      <p>Un nouveau chemin "${newPath.id}" est apparu!</p>
+      <p>La carte s'est agrandie et les ennemis peuvent maintenant emprunter plusieurs chemins.</p>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 4 seconds
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 4000);
   }
 }
 

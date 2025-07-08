@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Paths - Card Tower Defense</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #2c3e50;
+            color: white;
+        }
+        #debug-info {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            border-radius: 5px;
+            font-size: 12px;
+            max-width: 400px;
+            z-index: 1000;
+        }
+        canvas {
+            border: 1px solid #fff;
+            background: #34495e;
+        }
+        button {
+            margin: 5px;
+            padding: 10px 15px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+    </style>
+</head>
+<body>
+    <div id="debug-info">
+        <h3>🔧 Debug Paths Info</h3>
+        <div id="paths-info">Loading...</div>
+        <button onclick="triggerExpansion()">🌍 Trigger Expansion</button>
+        <button onclick="logAllPaths()">📋 Log All Paths</button>
+    </div>
+
+    <canvas id="gameCanvas" width="1280" height="720"></canvas>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const socket = io();
+        
+        let allPaths = [];
+        let playerName = 'DebugUser';
+        let currentRoom = null;
+
+        // Initialize connection
+        socket.emit('join-game', { playerName, roomId: null });
+
+        socket.on('room-joined', (data) => {
+            console.log('🎮 Room joined:', data);
+            currentRoom = data.roomId;
+            updateDebugInfo();
+        });
+
+        socket.on('MAP_EXPANDED', (data) => {
+            console.log('🗺️ MAP_EXPANDED received:', data);
+            
+            if (data.newPath) {
+                console.log('➕ Adding new path:', data.newPath);
+                allPaths.push(data.newPath);
+            }
+            
+            if (data.allPaths) {
+                console.log('🔄 Replacing all paths:', data.allPaths);
+                allPaths = [...data.allPaths];
+            }
+            
+            updateDebugInfo();
+            drawPaths();
+        });
+
+        function updateDebugInfo() {
+            const info = document.getElementById('paths-info');
+            let html = `<strong>Room:</strong> ${currentRoom}<br>`;
+            html += `<strong>Total Paths:</strong> ${allPaths.length}<br><br>`;
+            
+            allPaths.forEach((path, index) => {
+                html += `<div style="margin-bottom: 10px;">`;
+                html += `<strong>${path.id}</strong><br>`;
+                html += `Points: ${path.points.length}<br>`;
+                html += `Branched: ${path.branchedFrom ? 'Yes (' + path.branchedFrom + ')' : 'No'}<br>`;
+                if (path.branchPoint) {
+                    html += `Branch Point: (${Math.round(path.branchPoint.x)}, ${Math.round(path.branchPoint.y)})<br>`;
+                }
+                html += `Last Point: (${Math.round(path.points[path.points.length-1].x)}, ${Math.round(path.points[path.points.length-1].y)})<br>`;
+                html += `</div>`;
+            });
+            
+            info.innerHTML = html;
+        }
+
+        function drawPaths() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw base
+            const baseX = 1200, baseY = 360;
+            ctx.fillStyle = '#e74c3c';
+            ctx.fillRect(baseX - 20, baseY - 20, 40, 40);
+            ctx.fillStyle = '#fff';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('BASE', baseX, baseY + 35);
+            
+            // Draw paths
+            allPaths.forEach((pathData, index) => {
+                const path = pathData.points;
+                const colors = ['#e67e22', '#9b59b6', '#1abc9c', '#f39c12', '#2ecc71', '#3498db'];
+                const color = colors[index % colors.length];
+                
+                // Draw path
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 30;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                
+                ctx.beginPath();
+                ctx.moveTo(path[0].x, path[0].y);
+                for (let i = 1; i < path.length; i++) {
+                    ctx.lineTo(path[i].x, path[i].y);
+                }
+                ctx.stroke();
+                
+                // Draw path points
+                ctx.fillStyle = '#fff';
+                path.forEach((point, pointIndex) => {
+                    ctx.beginPath();
+                    ctx.arc(point.x, point.y, 4, 0, 2 * Math.PI);
+                    ctx.fill();
+                    
+                    // Label points
+                    ctx.fillStyle = '#000';
+                    ctx.font = '10px Arial';
+                    ctx.fillText(`${pointIndex}`, point.x + 8, point.y - 8);
+                    ctx.fillStyle = '#fff';
+                });
+                
+                // Draw path label
+                ctx.fillStyle = '#fff';
+                ctx.font = '14px Arial';
+                ctx.fillText(pathData.id, path[0].x, path[0].y - 20);
+                
+                // Draw branch point if exists
+                if (pathData.branchPoint) {
+                    ctx.fillStyle = '#f1c40f';
+                    ctx.beginPath();
+                    ctx.arc(pathData.branchPoint.x, pathData.branchPoint.y, 8, 0, 2 * Math.PI);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = '#000';
+                    ctx.font = '12px Arial';
+                    ctx.fillText('🌳', pathData.branchPoint.x, pathData.branchPoint.y + 4);
+                }
+            });
+        }
+
+        function triggerExpansion() {
+            if (currentRoom) {
+                socket.emit('debug-trigger-expansion', {});
+                console.log('🚀 Expansion triggered');
+            }
+        }
+
+        function logAllPaths() {
+            console.log('📋 All paths:', allPaths);
+            allPaths.forEach((path, index) => {
+                console.log(`Path ${index} (${path.id}):`, path.points);
+            });
+        }
+
+        // Initial draw
+        drawPaths();
+    </script>
+</body>
+</html>

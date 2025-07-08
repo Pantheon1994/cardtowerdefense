@@ -33,9 +33,16 @@ const GAME_EVENTS = {
   TOWER_INFO: 'tower_info',
   CHANGE_TARGETING_MODE: 'change_targeting_mode',
   
+  // Map expansion events
+  MAP_EXPANDED: 'map_expanded',
+  
   // Chat events
   CHAT_MESSAGE: 'chat_message',
   CHAT_MESSAGE_BROADCAST: 'chat_message_broadcast',
+  
+  // Debug events
+  DEBUG_SKIP_TO_WAVE: 'debug_skip_to_wave',
+  DEBUG_TRIGGER_EXPANSION: 'debug_trigger_expansion',
   
   // Error events
   ERROR: 'error'
@@ -67,10 +74,6 @@ const TOWER_TYPES = {
   EARTH: {
     name: 'Terre',
     emoji: '🪨',
-    color: '#95a5a6'
-  },
-  WIND: {
-    name: 'Vent',
     emoji: '🌪️',
     color: '#1abc9c'
   },

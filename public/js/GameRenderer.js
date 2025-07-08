@@ -2,16 +2,48 @@ class GameRenderer {
   constructor() {
     this.canvas = document.getElementById('gameCanvas');
     this.ctx = this.canvas.getContext('2d');
-    this.path = [
-      { x: 0, y: 300 },
-      { x: 200, y: 300 },
-      { x: 200, y: 200 },
-      { x: 400, y: 200 },
-      { x: 400, y: 400 },
-      { x: 600, y: 400 },
-      { x: 600, y: 300 },
-      { x: 800, y: 300 }
+    
+    // Viewport system - keep canvas size fixed
+    this.viewportWidth = 1280;
+    this.viewportHeight = 720;
+    this.canvas.width = this.viewportWidth;
+    this.canvas.height = this.viewportHeight;
+    
+    // Camera system for navigation
+    this.camera = {
+      x: 0,  // Camera position in world coordinates
+      y: 0,
+      speed: 5, // Camera movement speed
+      smoothing: 0.1 // Camera smoothing factor
+    };
+    
+    // Map and path system - Updated for 1280x720 viewport
+    this.mapWidth = 1280;  // World map width (matches new viewport)
+    this.mapHeight = 720; // World map height (matches new viewport)
+    this.paths = []; // Multiple paths support
+    this.path = [ // Default path adapted for 1280x720 (matches server baseEndPoint)
+      { x: 0, y: 360 },      // Start at middle left
+      { x: 320, y: 360 },    // Move right
+      { x: 320, y: 240 },    // Move up
+      { x: 640, y: 240 },    // Move right
+      { x: 640, y: 480 },    // Move down
+      { x: 960, y: 480 },    // Move right
+      { x: 960, y: 360 },    // Move up to center
+      { x: 1200, y: 360 }    // End at base (matches server baseEndPoint)
     ];
+    
+    // Initialize with default path
+    this.paths.push({
+      id: 'path_0',
+      points: this.path,
+      color: '#FFD700'
+    });
+    
+    // Camera controls
+    this.keys = {
+      w: false, a: false, s: false, d: false,
+      ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false
+    };
     
     // Grid system
     this.gridCellSize = 40; // Même valeur que GRID_CONFIG.CELL_SIZE
@@ -21,6 +53,184 @@ class GameRenderer {
     
     // Generate tower placement zones automatically along the path
     this.towerZones = this.generateTowerZones();
+    
+    // Setup camera controls
+    this.setupCameraControls();
+  }
+
+  setupCameraControls() {
+    // Keyboard event listeners for camera movement
+    document.addEventListener('keydown', (e) => {
+      if (e.key in this.keys) {
+        this.keys[e.key] = true;
+        e.preventDefault();
+      }
+    });
+
+    document.addEventListener('keyup', (e) => {
+      if (e.key in this.keys) {
+        this.keys[e.key] = false;
+        e.preventDefault();
+      }
+    });
+
+    // Mouse drag for camera movement
+    let isDragging = false;
+    let lastMousePos = { x: 0, y: 0 };
+
+    this.canvas.addEventListener('mousedown', (e) => {
+      if (e.button === 1) { // Middle mouse button
+        isDragging = true;
+        lastMousePos = { x: e.clientX, y: e.clientY };
+        this.canvas.style.cursor = 'grabbing';
+        e.preventDefault();
+      }
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (isDragging) {
+        const deltaX = e.clientX - lastMousePos.x;
+        const deltaY = e.clientY - lastMousePos.y;
+        
+        this.camera.x -= deltaX;
+        this.camera.y -= deltaY;
+        this.constrainCamera();
+        
+        lastMousePos = { x: e.clientX, y: e.clientY };
+      }
+    });
+
+    document.addEventListener('mouseup', (e) => {
+      if (e.button === 1) {
+        isDragging = false;
+        this.canvas.style.cursor = 'default';
+      }
+    });
+
+    // Scroll wheel for zoom (optional future feature)
+    this.canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      // Future: implement zoom functionality
+    });
+  }
+
+  updateCamera() {
+    // Handle keyboard movement
+    const moveSpeed = this.camera.speed;
+    
+    if (this.keys.w || this.keys.ArrowUp) this.camera.y -= moveSpeed;
+    if (this.keys.s || this.keys.ArrowDown) this.camera.y += moveSpeed;
+    if (this.keys.a || this.keys.ArrowLeft) this.camera.x -= moveSpeed;
+    if (this.keys.d || this.keys.ArrowRight) this.camera.x += moveSpeed;
+    
+    this.constrainCamera();
+  }
+
+  constrainCamera() {
+    // Keep camera within map bounds
+    const maxCameraX = Math.max(0, this.mapWidth - this.viewportWidth);
+    const maxCameraY = Math.max(0, this.mapHeight - this.viewportHeight);
+    
+    this.camera.x = Math.max(0, Math.min(this.camera.x, maxCameraX));
+    this.camera.y = Math.max(0, Math.min(this.camera.y, maxCameraY));
+  }
+
+  // Convert world coordinates to screen coordinates
+  worldToScreen(worldX, worldY) {
+    return {
+      x: worldX - this.camera.x,
+      y: worldY - this.camera.y
+    };
+  }
+
+  // Convert screen coordinates to world coordinates
+  screenToWorld(screenX, screenY) {
+    return {
+      x: screenX + this.camera.x,
+      y: screenY + this.camera.y
+    };
+  }
+
+  // Check if a world coordinate is visible in the current viewport
+  isVisible(worldX, worldY, margin = 50) {
+    const screen = this.worldToScreen(worldX, worldY);
+    return screen.x >= -margin && 
+           screen.x <= this.viewportWidth + margin &&
+           screen.y >= -margin && 
+           screen.y <= this.viewportHeight + margin;
+  }
+
+  updateMapDimensions(newDimensions) {
+    this.mapWidth = newDimensions.width;
+    this.mapHeight = newDimensions.height;
+    
+    // No need to change canvas size - it stays fixed
+    // Just update camera constraints
+    this.constrainCamera();
+    
+    console.log(`🗺️ Map dimensions updated to ${this.mapWidth}x${this.mapHeight} (viewport: ${this.viewportWidth}x${this.viewportHeight})`);
+  }
+
+  addNewPath(newPath) {
+    const pathColor = this.getPathColor(this.paths.length);
+    
+    // Check if this path already exists (merged path case)
+    const existingPathIndex = this.paths.findIndex(p => p.id === newPath.id);
+    if (existingPathIndex !== -1) {
+      // Update the existing path with new points (branched path)
+      this.paths[existingPathIndex] = {
+        id: newPath.id,
+        points: newPath.points,
+        color: pathColor,
+        createdAtWave: newPath.createdAtWave,
+        branchedFrom: newPath.branchedFrom,
+        branchPoint: newPath.branchPoint,
+        branches: newPath.branches || []
+      };
+    } else {
+      // Add new path
+      this.paths.push({
+        id: newPath.id,
+        points: newPath.points,
+        color: pathColor,
+        createdAtWave: newPath.createdAtWave,
+        branchedFrom: newPath.branchedFrom,
+        branchPoint: newPath.branchPoint,
+        branches: newPath.branches || []
+      });
+    }
+    
+    // Update tower zones to include new/updated path
+    this.towerZones = this.generateTowerZones();
+  }
+
+  updateAllPaths(allPaths) {
+    
+    // Clear existing paths
+    this.paths = [];
+    
+    // Add all paths with appropriate colors
+    allPaths.forEach((pathData, index) => {
+      const pathColor = this.getPathColor(index);
+      
+      this.paths.push({
+        id: pathData.id,
+        points: pathData.points,
+        color: pathColor,
+        createdAtWave: pathData.createdAtWave,
+        branchedFrom: pathData.branchedFrom,
+        branchPoint: pathData.branchPoint,
+        branches: pathData.branches || []
+      });
+    });
+    
+    // Update tower zones to include all paths
+    this.towerZones = this.generateTowerZones();
+  }
+
+  getPathColor(pathIndex) {
+    // Uniform color for all paths
+    return '#8B4513'; // Brown/dirt color for all paths
   }
 
   generateTowerZones() {
@@ -29,59 +239,54 @@ class GameRenderer {
     const zoneSize = 40; // Size of each tower zone
     const zoneSpacing = 60; // Spacing between zones
     
-    // Generate zones along both sides of the path
-    for (let i = 0; i < this.path.length - 1; i++) {
-      const current = this.path[i];
-      const next = this.path[i + 1];
+    // Generate zones along both sides of all paths
+    this.paths.forEach(pathData => {
+      const path = pathData.points;
       
-      // Calculate direction vector
-      const dx = next.x - current.x;
-      const dy = next.y - current.y;
-      const length = Math.sqrt(dx * dx + dy * dy);
-      
-      if (length === 0) continue;
-      
-      // Normalize direction
-      const unitX = dx / length;
-      const unitY = dy / length;
-      
-      // Perpendicular vectors for left and right sides
-      const perpX = -unitY;
-      const perpY = unitX;
-      
-      // Generate zones along this segment
-      const segmentZones = Math.floor(length / zoneSpacing);
-      
-      for (let j = 0; j <= segmentZones; j++) {
-        const t = j / Math.max(segmentZones, 1);
-        const segmentX = current.x + t * dx;
-        const segmentY = current.y + t * dy;
+      for (let i = 0; i < path.length - 1; i++) {
+        const current = path[i];
+        const next = path[i + 1];
         
-        // Left side zones
-        const leftX = segmentX + perpX * pathBuffer;
-        const leftY = segmentY + perpY * pathBuffer;
-        if (this.isInBounds(leftX, leftY, zoneSize)) {
+        // Calculate direction vector
+        const dx = next.x - current.x;
+        const dy = next.y - current.y;
+        const length = Math.sqrt(dx * dx + dy * dy);
+        
+        if (length === 0) continue;
+        
+        // Normalize direction
+        const unitX = dx / length;
+        const unitY = dy / length;
+        
+        // Perpendicular vectors for left and right sides
+        const perpX = -unitY;
+        const perpY = unitX;
+        
+        // Place zones along this segment
+        const numZones = Math.floor(length / zoneSpacing);
+        for (let j = 0; j <= numZones; j++) {
+          const t = numZones > 0 ? j / numZones : 0;
+          const pointX = current.x + t * dx;
+          const pointY = current.y + t * dy;
+          
+          // Left side zones
           zones.push({
-            x: leftX - zoneSize/2,
-            y: leftY - zoneSize/2,
+            x: pointX + perpX * pathBuffer - zoneSize / 2,
+            y: pointY + perpY * pathBuffer - zoneSize / 2,
             width: zoneSize,
             height: zoneSize
           });
-        }
-        
-        // Right side zones
-        const rightX = segmentX - perpX * pathBuffer;
-        const rightY = segmentY - perpY * pathBuffer;
-        if (this.isInBounds(rightX, rightY, zoneSize)) {
+          
+          // Right side zones
           zones.push({
-            x: rightX - zoneSize/2,
-            y: rightY - zoneSize/2,
+            x: pointX - perpX * pathBuffer - zoneSize / 2,
+            y: pointY - perpY * pathBuffer - zoneSize / 2,
             width: zoneSize,
             height: zoneSize
           });
         }
       }
-    }
+    });
     
     return zones;
   }
@@ -89,14 +294,26 @@ class GameRenderer {
   isInBounds(x, y, size) {
     const margin = size/2 + 10;
     return x >= margin && 
-           x <= this.canvas.width - margin && 
+           x <= this.mapWidth - margin && 
            y >= margin && 
-           y <= this.canvas.height - margin;
+           y <= this.mapHeight - margin;
   }
 
   render(gameState) {
     this.gameState = gameState; // Stocker pour la validation de grille
+    
+    // Update camera position
+    this.updateCamera();
+    
     this.clearCanvas();
+    
+    // Save context for camera transform
+    this.ctx.save();
+    
+    // Apply camera transform
+    this.ctx.translate(-this.camera.x, -this.camera.y);
+    
+    // Draw world elements (affected by camera)
     this.drawBackground();
     this.drawPath();
     
@@ -115,23 +332,46 @@ class GameRenderer {
       this.drawEnemies(gameState.enemies || []);
       this.drawProjectiles(gameState.projectiles || []);
       this.drawBase();
+    }
+    
+    // Restore context
+    this.ctx.restore();
+    
+    // Draw UI elements (not affected by camera)
+    if (gameState) {
       this.drawWaveInfo(gameState);
     }
+    
+    // Draw camera info for debug
+    this.drawCameraInfo();
   }
 
   clearCanvas() {
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.clearRect(0, 0, this.viewportWidth, this.viewportHeight);
   }
 
   drawBackground() {
-    // Draw grass background
-    this.ctx.fillStyle = '#4a7c59';
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    // Calculate visible area in world coordinates
+    const worldTopLeft = this.screenToWorld(0, 0);
+    const worldBottomRight = this.screenToWorld(this.viewportWidth, this.viewportHeight);
     
-    // Add some texture with dots
+    // Draw grass background for the visible area
+    this.ctx.fillStyle = '#4a7c59';
+    this.ctx.fillRect(
+      worldTopLeft.x, worldTopLeft.y,
+      worldBottomRight.x - worldTopLeft.x,
+      worldBottomRight.y - worldTopLeft.y
+    );
+    
+    // Add some texture with dots (optimized for visible area)
     this.ctx.fillStyle = '#5d8a6b';
-    for (let x = 0; x < this.canvas.width; x += 20) {
-      for (let y = 0; y < this.canvas.height; y += 20) {
+    const startX = Math.floor(worldTopLeft.x / 20) * 20;
+    const startY = Math.floor(worldTopLeft.y / 20) * 20;
+    const endX = Math.ceil(worldBottomRight.x / 20) * 20;
+    const endY = Math.ceil(worldBottomRight.y / 20) * 20;
+    
+    for (let x = startX; x < endX; x += 20) {
+      for (let y = startY; y < endY; y += 20) {
         if (Math.random() > 0.7) {
           this.ctx.fillRect(x, y, 2, 2);
         }
@@ -140,26 +380,314 @@ class GameRenderer {
   }
 
   drawPath() {
-    this.ctx.strokeStyle = '#8B4513';
-    this.ctx.lineWidth = 40;
-    this.ctx.lineCap = 'round';
-    this.ctx.lineJoin = 'round';
+    const currentTime = Date.now();
     
+    // Draw all paths with uniform color and directional animation
+    this.paths.forEach((pathData, index) => {
+      const path = pathData.points;
+      const color = '#8B4513'; // Uniform brown/dirt color for all paths
+      
+      // Draw path border first
+      this.ctx.strokeStyle = this.darkenColor(color, 0.3);
+      this.ctx.lineWidth = 45;
+      this.ctx.lineCap = 'round';
+      this.ctx.lineJoin = 'round';
+      
+      this.ctx.beginPath();
+      this.ctx.moveTo(path[0].x, path[0].y);
+      for (let i = 1; i < path.length; i++) {
+        this.ctx.lineTo(path[i].x, path[i].y);
+      }
+      this.ctx.stroke();
+      
+      // Draw main path
+      this.ctx.strokeStyle = color;
+      this.ctx.lineWidth = 40;
+      
+      this.ctx.beginPath();
+      this.ctx.moveTo(path[0].x, path[0].y);
+      for (let i = 1; i < path.length; i++) {
+        this.ctx.lineTo(path[i].x, path[i].y);
+      }
+      this.ctx.stroke();
+      
+      // Draw directional animation (moving dots/arrows)
+      this.drawPathAnimation(path, currentTime, index);
+      
+      // Draw path label for new paths
+      if (index > 0) {
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.font = '12px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(`${pathData.id}`, path[0].x, path[0].y - 20);
+      }
+      
+      // Draw branch indicators if this path is branched
+      if (pathData.branchedFrom) {
+        this.drawBranchConnectionIndicator(pathData);
+      }
+      
+      // Draw branch points if this path has branches
+      if (pathData.branches && pathData.branches.length > 0) {
+        this.drawBranchStartPoints(pathData);
+      }
+    });
+  }
+
+  drawBranchIndicators(pathData) {
+    if (!pathData.branchPoint) return;
+    
+    const currentTime = Date.now();
+    const pulse = Math.sin(currentTime / 300) * 0.3 + 0.7;
+    
+    // Draw pulsing circle at branch point
+    this.ctx.globalAlpha = pulse;
+    this.ctx.fillStyle = '#32CD32'; // Green color for branch indicators
     this.ctx.beginPath();
-    this.ctx.moveTo(this.path[0].x, this.path[0].y);
+    this.ctx.arc(pathData.branchPoint.x, pathData.branchPoint.y, 10, 0, 2 * Math.PI);
+    this.ctx.fill();
     
-    for (let i = 1; i < this.path.length; i++) {
-      this.ctx.lineTo(this.path[i].x, this.path[i].y);
+    // Draw branch symbol
+    this.ctx.globalAlpha = 1.0;
+    this.ctx.fillStyle = '#FFFFFF';
+    this.ctx.font = '14px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('🌳', pathData.branchPoint.x, pathData.branchPoint.y + 5);
+    
+    // Draw connection line to parent path
+    this.ctx.strokeStyle = '#32CD32';
+    this.ctx.lineWidth = 2;
+    this.ctx.setLineDash([5, 5]);
+    this.ctx.beginPath();
+    this.ctx.moveTo(pathData.branchPoint.x, pathData.branchPoint.y);
+    this.ctx.lineTo(pathData.points[0].x, pathData.points[0].y);
+    this.ctx.stroke();
+    this.ctx.setLineDash([]);
+  }
+
+  drawBranchPoints(pathData) {
+    if (!pathData.branches) return;
+    
+    const currentTime = Date.now();
+    
+    pathData.branches.forEach((branch, index) => {
+      const pulse = Math.sin(currentTime / 400 + index) * 0.2 + 0.8;
+      
+      // Draw pulsing circle at branch point
+      this.ctx.globalAlpha = pulse;
+      this.ctx.fillStyle = '#FFD700'; // Gold color for branch points
+      this.ctx.beginPath();
+      this.ctx.arc(branch.branchPoint.x, branch.branchPoint.y, 8, 0, 2 * Math.PI);
+      this.ctx.fill();
+      
+      // Draw branch symbol
+      this.ctx.globalAlpha = 1.0;
+      this.ctx.fillStyle = '#8B4513';
+      this.ctx.font = '12px Arial';
+      this.ctx.textAlign = 'center';
+      this.ctx.fillText('🔗', branch.branchPoint.x, branch.branchPoint.y + 4);
+    });
+    
+    this.ctx.globalAlpha = 1.0;
+  }
+
+  drawBranchConnectionIndicator(pathData) {
+    if (!pathData.branchPoint) return;
+    
+    const currentTime = Date.now();
+    const pulse = Math.sin(currentTime / 300) * 0.3 + 0.7;
+    
+    // Draw pulsing circle at branch connection point
+    this.ctx.globalAlpha = pulse;
+    this.ctx.fillStyle = '#32CD32'; // Green color for branch connection
+    this.ctx.beginPath();
+    this.ctx.arc(pathData.branchPoint.x, pathData.branchPoint.y, 8, 0, 2 * Math.PI);
+    this.ctx.fill();
+    
+    // Draw branch symbol
+    this.ctx.globalAlpha = 1.0;
+    this.ctx.fillStyle = '#FFFFFF';
+    this.ctx.font = '14px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('🌳', pathData.branchPoint.x, pathData.branchPoint.y + 4);
+  }
+
+  drawBranchStartPoints(pathData) {
+    const currentTime = Date.now();
+    
+    pathData.branches.forEach((branch, index) => {
+      const pulse = Math.sin(currentTime / 400 + index) * 0.2 + 0.8;
+      
+      // Draw pulsing circle at branch start point
+      this.ctx.globalAlpha = pulse;
+      this.ctx.fillStyle = '#FFD700'; // Gold for branch start point
+      this.ctx.beginPath();
+      this.ctx.arc(branch.branchPoint.x, branch.branchPoint.y, 6, 0, 2 * Math.PI);
+      this.ctx.fill();
+      
+      // Draw branch start symbol
+      this.ctx.globalAlpha = 1.0;
+      this.ctx.fillStyle = '#8B4513';
+      this.ctx.font = '12px Arial';
+      this.ctx.textAlign = 'center';
+      this.ctx.fillText('•', branch.branchPoint.x, branch.branchPoint.y + 3);
+    });
+    
+    this.ctx.globalAlpha = 1.0;
+  }
+
+  drawMergeIndicators(pathData) {
+    const path = pathData.points;
+    const currentTime = Date.now();
+    
+    // Find potential merge points (look for sharp direction changes)
+    const mergePoints = this.findMergePoints(path);
+    
+    // Draw merge indicators at these points
+    mergePoints.forEach(point => {
+      const pulse = Math.sin(currentTime / 300) * 0.3 + 0.7;
+      
+      // Draw pulsing circle at merge point
+      this.ctx.globalAlpha = pulse;
+      this.ctx.fillStyle = '#FFD700'; // Gold color for merge indicators
+      this.ctx.beginPath();
+      this.ctx.arc(point.x, point.y, 12, 0, 2 * Math.PI);
+      this.ctx.fill();
+      
+      // Draw merge symbol
+      this.ctx.globalAlpha = 1.0;
+      this.ctx.fillStyle = '#8B4513';
+      this.ctx.font = '16px Arial';
+      this.ctx.textAlign = 'center';
+      this.ctx.fillText('⚡', point.x, point.y + 5);
+    });
+    
+    this.ctx.globalAlpha = 1.0;
+  }
+
+  findMergePoints(pathPoints) {
+    const mergePoints = [];
+    
+    // Look for points where the path direction changes significantly
+    // This indicates potential merge points
+    for (let i = 1; i < pathPoints.length - 1; i++) {
+      const prev = pathPoints[i - 1];
+      const curr = pathPoints[i];
+      const next = pathPoints[i + 1];
+      
+      // Calculate angles
+      const angle1 = Math.atan2(curr.y - prev.y, curr.x - prev.x);
+      const angle2 = Math.atan2(next.y - curr.y, next.x - curr.x);
+      
+      // Calculate angle difference
+      let angleDiff = Math.abs(angle2 - angle1);
+      if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+      
+      // If angle change is significant, this might be a merge point
+      if (angleDiff > Math.PI / 3) { // 60 degrees
+        mergePoints.push(curr);
+      }
     }
     
-    this.ctx.stroke();
+    return mergePoints;
+  }
+
+  drawPathAnimation(path, currentTime, pathIndex) {
+    const animationSpeed = 100; // Speed of animation (pixels per second)
+    const dotSpacing = 60; // Distance between animated dots
+    const dotSize = 4; // Size of animated dots
     
-    // Draw path border
-    this.ctx.strokeStyle = '#654321';
-    this.ctx.lineWidth = 45;
-    this.ctx.globalCompositeOperation = 'destination-over';
-    this.ctx.stroke();
-    this.ctx.globalCompositeOperation = 'source-over';
+    // Calculate total path length
+    let totalLength = 0;
+    const segmentLengths = [];
+    
+    for (let i = 0; i < path.length - 1; i++) {
+      const dx = path[i + 1].x - path[i].x;
+      const dy = path[i + 1].y - path[i].y;
+      const length = Math.sqrt(dx * dx + dy * dy);
+      segmentLengths.push(length);
+      totalLength += length;
+    }
+    
+    if (totalLength === 0) return;
+    
+    // Animation offset based on time and path index
+    const timeOffset = pathIndex * 1000; // Stagger animations for different paths
+    const animationOffset = ((currentTime + timeOffset) / 10) % dotSpacing;
+    
+    // Draw animated dots along the path
+    for (let dotOffset = animationOffset; dotOffset < totalLength; dotOffset += dotSpacing) {
+      const position = this.getPositionAlongPath(path, segmentLengths, dotOffset, totalLength);
+      if (position) {
+        // Draw animated dot
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        this.ctx.beginPath();
+        this.ctx.arc(position.x, position.y, dotSize, 0, 2 * Math.PI);
+        this.ctx.fill();
+        
+        // Draw direction arrow
+        if (position.direction) {
+          this.drawDirectionArrow(position.x, position.y, position.direction, dotSize * 1.5);
+        }
+      }
+    }
+  }
+
+  getPositionAlongPath(path, segmentLengths, distance, totalLength) {
+    if (distance >= totalLength) return null;
+    
+    let currentDistance = 0;
+    
+    for (let i = 0; i < path.length - 1; i++) {
+      const segmentLength = segmentLengths[i];
+      
+      if (currentDistance + segmentLength >= distance) {
+        // Position is on this segment
+        const segmentProgress = (distance - currentDistance) / segmentLength;
+        const startPoint = path[i];
+        const endPoint = path[i + 1];
+        
+        const x = startPoint.x + (endPoint.x - startPoint.x) * segmentProgress;
+        const y = startPoint.y + (endPoint.y - startPoint.y) * segmentProgress;
+        
+        // Calculate direction
+        const dx = endPoint.x - startPoint.x;
+        const dy = endPoint.y - startPoint.y;
+        const direction = Math.atan2(dy, dx);
+        
+        return { x, y, direction };
+      }
+      
+      currentDistance += segmentLength;
+    }
+    
+    return null;
+  }
+
+  drawDirectionArrow(x, y, direction, size) {
+    this.ctx.save();
+    this.ctx.translate(x, y);
+    this.ctx.rotate(direction);
+    
+    // Draw simple arrow
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    this.ctx.beginPath();
+    this.ctx.moveTo(size, 0);
+    this.ctx.lineTo(-size/2, -size/2);
+    this.ctx.lineTo(-size/2, size/2);
+    this.ctx.closePath();
+    this.ctx.fill();
+    
+    this.ctx.restore();
+  }
+
+  darkenColor(color, amount) {
+    // Simple color darkening function
+    const hex = color.replace('#', '');
+    const r = Math.max(0, parseInt(hex.substr(0, 2), 16) * (1 - amount));
+    const g = Math.max(0, parseInt(hex.substr(2, 2), 16) * (1 - amount));
+    const b = Math.max(0, parseInt(hex.substr(4, 2), 16) * (1 - amount));
+    return `rgb(${Math.floor(r)}, ${Math.floor(g)}, ${Math.floor(b)})`;
   }
 
   drawTowerZones() {
@@ -186,8 +714,9 @@ class GameRenderer {
   }
 
   drawBase() {
-    const baseX = this.path[this.path.length - 1].x;
-    const baseY = this.path[this.path.length - 1].y;
+    // Use the base endpoint that matches server baseEndPoint (1200, 360)
+    const baseX = 1200; // Matches server baseEndPoint.x
+    const baseY = 360;  // Matches server baseEndPoint.y
     
     // Draw base
     this.ctx.fillStyle = '#8B4513';
@@ -708,38 +1237,63 @@ class GameRenderer {
     const totalCount = gameState.enemies.length;
     const remainingCount = totalCount - spawnedCount;
     
-    // Afficher les stats de la vague en haut à droite
+    // Afficher les stats de la vague en haut à droite (UI fixe)
     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    this.ctx.fillRect(this.canvas.width - 200, 10, 190, 60);
+    this.ctx.fillRect(this.viewportWidth - 200, 10, 190, 60);
     
     this.ctx.fillStyle = '#fff';
     this.ctx.font = '14px Arial';
     this.ctx.textAlign = 'left';
-    this.ctx.fillText(`Vague ${gameState.currentWave || 1}`, this.canvas.width - 190, 30);
-    this.ctx.fillText(`Spawned: ${spawnedCount}/${totalCount}`, this.canvas.width - 190, 45);
-    this.ctx.fillText(`À venir: ${remainingCount}`, this.canvas.width - 190, 60);
+    this.ctx.fillText(`Vague ${gameState.currentWave || 1}`, this.viewportWidth - 190, 30);
+    this.ctx.fillText(`Spawned: ${spawnedCount}/${totalCount}`, this.viewportWidth - 190, 45);
+    this.ctx.fillText(`À venir: ${remainingCount}`, this.viewportWidth - 190, 60);
+  }
+
+  drawCameraInfo() {
+    // Draw camera debug info (UI element, not affected by camera)
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    this.ctx.fillRect(10, 10, 200, 80);
+    
+    this.ctx.fillStyle = '#fff';
+    this.ctx.font = '12px Arial';
+    this.ctx.textAlign = 'left';
+    this.ctx.fillText(`Camera: (${Math.round(this.camera.x)}, ${Math.round(this.camera.y)})`, 15, 25);
+    this.ctx.fillText(`Map: ${this.mapWidth}x${this.mapHeight}`, 15, 40);
+    this.ctx.fillText(`Viewport: ${this.viewportWidth}x${this.viewportHeight}`, 15, 55);
+    this.ctx.fillText(`Controls: Arrows, Middle-click drag`, 15, 70);
+    this.ctx.fillText(`Paths: ${this.paths.length}`, 15, 85);
   }
 
   // === GRID SYSTEM ===
   
   drawGrid() {
     const cellSize = this.gridCellSize;
+    
+    // Calculate visible grid area
+    const worldTopLeft = this.screenToWorld(0, 0);
+    const worldBottomRight = this.screenToWorld(this.viewportWidth, this.viewportHeight);
+    
+    const startX = Math.floor(worldTopLeft.x / cellSize) * cellSize;
+    const startY = Math.floor(worldTopLeft.y / cellSize) * cellSize;
+    const endX = Math.ceil(worldBottomRight.x / cellSize) * cellSize;
+    const endY = Math.ceil(worldBottomRight.y / cellSize) * cellSize;
+    
     this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
     this.ctx.lineWidth = 1;
     
-    // Lignes verticales
-    for (let x = 0; x <= this.canvas.width; x += cellSize) {
+    // Lignes verticales (optimized for visible area)
+    for (let x = startX; x <= endX; x += cellSize) {
       this.ctx.beginPath();
-      this.ctx.moveTo(x, 0);
-      this.ctx.lineTo(x, this.canvas.height);
+      this.ctx.moveTo(x, startY);
+      this.ctx.lineTo(x, endY);
       this.ctx.stroke();
     }
     
-    // Lignes horizontales
-    for (let y = 0; y <= this.canvas.height; y += cellSize) {
+    // Lignes horizontales (optimized for visible area)
+    for (let y = startY; y <= endY; y += cellSize) {
       this.ctx.beginPath();
-      this.ctx.moveTo(0, y);
-      this.ctx.lineTo(this.canvas.width, y);
+      this.ctx.moveTo(startX, y);
+      this.ctx.lineTo(endX, y);
       this.ctx.stroke();
     }
   }
@@ -780,10 +1334,10 @@ class GameRenderer {
   }
 
   isValidGridPosition(x, y) {
-    // Vérifier les limites
+    // Vérifier les limites de la map (pas du canvas)
     const halfSize = this.gridCellSize / 2;
-    if (x - halfSize < 0 || x + halfSize > this.canvas.width || 
-        y - halfSize < 0 || y + halfSize > this.canvas.height) {
+    if (x - halfSize < 0 || x + halfSize > this.mapWidth || 
+        y - halfSize < 0 || y + halfSize > this.mapHeight) {
       return false;
     }
     
@@ -808,12 +1362,16 @@ class GameRenderer {
   isValidDistanceFromPath(x, y) {
     let minDistance = Infinity;
     
-    for (let i = 0; i < this.path.length - 1; i++) {
-      const point1 = this.path[i];
-      const point2 = this.path[i + 1];
-      const distance = this.distanceToLineSegment(x, y, point1.x, point1.y, point2.x, point2.y);
-      minDistance = Math.min(minDistance, distance);
-    }
+    // Check distance to all paths, not just the first one
+    this.paths.forEach(pathData => {
+      const path = pathData.points;
+      for (let i = 0; i < path.length - 1; i++) {
+        const point1 = path[i];
+        const point2 = path[i + 1];
+        const distance = this.distanceToLineSegment(x, y, point1.x, point1.y, point2.x, point2.y);
+        minDistance = Math.min(minDistance, distance);
+      }
+    });
     
     return minDistance >= 30 && minDistance <= 120; // 30 = PATH_BUFFER
   }

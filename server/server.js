@@ -119,6 +119,41 @@ const gameRooms = new Map();
 io.on('connection', (socket) => {
   console.log('New client connected:', socket.id);
 
+  // Handle room creation
+  socket.on(GAME_EVENTS.CREATE_ROOM, (data) => {
+    const roomId = 'room_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    const room = new GameRoom(roomId, io);
+    gameRooms.set(roomId, room);
+    
+    // Join the room
+    const playerName = data.playerName || `Player ${socket.id.substring(0, 6)}`;
+    const success = room.addPlayer(socket.id, playerName);
+    
+    if (success) {
+      socket.join(roomId);
+      socket.emit(GAME_EVENTS.ROOM_CREATED, { roomId, playerId: socket.id });
+    } else {
+      socket.emit(GAME_EVENTS.ERROR, { message: 'Failed to create room' });
+    }
+  });
+
+  // Handle wave start
+  socket.on(GAME_EVENTS.START_WAVE, (data) => {
+    const room = gameRooms.get(data.roomId);
+    if (room) {
+      room.startWave();
+      socket.emit(GAME_EVENTS.WAVE_STARTED, { waveNumber: room.currentWave });
+    }
+  });
+
+  // Handle game reset
+  socket.on(GAME_EVENTS.RESET_GAME, (data) => {
+    const room = gameRooms.get(data.roomId);
+    if (room) {
+      room.resetGame();
+    }
+  });
+
   // Join or create room
   socket.on(GAME_EVENTS.JOIN_ROOM, (data) => {
     const { roomId, playerName } = data;
@@ -204,6 +239,14 @@ io.on('connection', (socket) => {
     const room = findRoomByPlayerId(socket.id);
     if (room) {
       room.handleChatMessage(socket.id, data);
+    }
+  });
+
+  // Handle debug events
+  socket.on(GAME_EVENTS.DEBUG_SKIP_TO_WAVE, (data) => {
+    const room = findRoomByPlayerId(socket.id);
+    if (room) {
+      room.handleDebugSkipToWave(socket.id, data);
     }
   });
 

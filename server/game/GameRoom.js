@@ -138,14 +138,31 @@ class GameRoom {
   launchWave() {
     this.phase = GAME_PHASES.WAVE_ACTIVE;
     this.waveStartTime = Date.now();
-    
-    // Get enemies for this wave and set their spawn times
-    const enemies = this.waveManager.getWaveEnemies(this.currentWave);
+
+    // Expansion de la map et création d'un nouveau chemin tous les 5 niveaux
+    let destroyedTowers = [];
+    let newPath = null;
+    if (this.waveManager.shouldExpandMap(this.currentWave)) {
+      newPath = this.waveManager.expandMapAndAddPath(this.currentWave);
+      if (newPath) {
+        destroyedTowers = this.waveManager.checkAndDestroyTowers(newPath, this.towers);
+        // Notifier les clients des tours détruites et du nouveau chemin
+        this.io.to(this.id).emit(GAME_EVENTS.MAP_EXPANDED, {
+          newPath: newPath,
+          destroyedTowers: destroyedTowers,
+          mapDimensions: this.waveManager.getMapDimensions()
+          // Ne pas envoyer allPaths pour éviter de remplacer les chemins existants
+        });
+      }
+    }
+
+    // Utiliser spawnWave pour créer les ennemis avec leurs chemins assignés
+    const enemies = this.waveManager.spawnWave(this.currentWave);
     enemies.forEach((enemy, index) => {
       // Set spawn time based on delay
       enemy.spawnTime = this.waveStartTime + enemy.spawnDelay;
       this.enemies.set(enemy.id, enemy);
-      console.log(`Enemy ${index}: ${enemy.id} - spawnDelay: ${enemy.spawnDelay}ms, spawnTime: ${enemy.spawnTime}`);
+      console.log(`Enemy ${index}: ${enemy.id} - spawnDelay: ${enemy.spawnDelay}ms, spawnTime: ${enemy.spawnTime}, pathId: ${enemy.assignedPathId}`);
     });
 
     console.log(`Wave ${this.currentWave} launched with ${enemies.length} enemies (spawning with delays)`);
@@ -633,14 +650,22 @@ class GameRoom {
     
     for (const [enemyId, enemy] of this.enemies) {
       if (!enemy.isSpawned && enemy.spawnTime && currentTime >= enemy.spawnTime) {
-        // Spawn the enemy at the start of the path
+        // Spawn the enemy at the start of its assigned path
         enemy.isSpawned = true;
-        enemy.x = this.waveManager.getPath()[0].x;
-        enemy.y = this.waveManager.getPath()[0].y;
+        // Use the enemy's own path points (already assigned during wave creation)
+        if (enemy.pathPoints && enemy.pathPoints.length > 0) {
+          enemy.x = enemy.pathPoints[0].x;
+          enemy.y = enemy.pathPoints[0].y;
+        } else {
+          // Fallback to default path if no path assigned
+          const defaultPath = this.waveManager.getPath();
+          enemy.x = defaultPath[0].x;
+          enemy.y = defaultPath[0].y;
+        }
         enemy.currentPathIndex = 0;
         
         newSpawns++;
-        console.log(`Enemy ${enemyId} spawned at (${enemy.x}, ${enemy.y}) - Time: ${currentTime}, Scheduled: ${enemy.spawnTime}`);
+        console.log(`Enemy ${enemyId} spawned at (${enemy.x}, ${enemy.y}) on path ${enemy.assignedPathId || 'default'} - Time: ${currentTime}, Scheduled: ${enemy.spawnTime}`);
       }
     }
     
@@ -726,6 +751,77 @@ class GameRoom {
 
     // Broadcast to all players in the room
     this.io.to(this.id).emit(GAME_EVENTS.CHAT_MESSAGE_BROADCAST, chatMessage);
+  }
+
+  // Debug methods
+  handleDebugSkipToWave(playerId, data) {
+    const player = this.players.get(playerId);
+    if (!player) {
+      console.log(`Player ${playerId} not found in room ${this.id}`);
+      return;
+    }
+
+    const { waveNumber } = data;
+    if (!waveNumber || typeof waveNumber !== 'number' || waveNumber < 1) {
+      console.log(`Invalid wave number from player ${playerId}: ${waveNumber}`);
+      return;
+    }
+
+    console.log(`🔧 Debug: Player ${player.name} skipping to wave ${waveNumber}`);
+
+    // Stop current wave if active
+    if (this.gameLoopInterval) {
+      clearInterval(this.gameLoopInterval);
+      this.gameLoopInterval = null;
+    }
+
+    // Clear enemies and projectiles
+    this.enemies.clear();
+    this.projectiles = [];
+
+    // Set wave number
+    this.currentWave = waveNumber - 1; // -1 because startWave will increment it
+
+    // Send debug notification to all players
+    const debugMessage = {
+      playerId: 'system',
+      playerName: 'DEBUG',
+      message: `${player.name} skipped to wave ${waveNumber}`,
+      timestamp: Date.now()
+    };
+    this.io.to(this.id).emit(GAME_EVENTS.CHAT_MESSAGE_BROADCAST, debugMessage);
+
+    // Start the wave
+    this.startNextWave();
+  }
+
+  resetGame() {
+    console.log(`🔄 Resetting game in room ${this.id}`);
+    
+    // Reset wave manager
+    this.waveManager = new WaveManager();
+    
+    // Reset game state
+    this.currentWave = 0;
+    this.gamePhase = GAME_PHASES.LOBBY;
+    this.enemies.clear();
+    this.towers.clear();
+    this.projectiles.clear();
+    this.waveStartTime = null;
+    this.isWaveActive = false;
+    this.baseHealth = 100;
+    
+    // Reset player states
+    this.players.forEach(player => {
+      player.selectedCard = null;
+      player.isReady = false;
+      player.cards = [];
+    });
+    
+    // Notify all players
+    this.io.to(this.id).emit(GAME_EVENTS.GAME_STATE_UPDATE, this.getGameState());
+    
+    console.log(`✅ Game reset complete in room ${this.id}`);
   }
 }
 

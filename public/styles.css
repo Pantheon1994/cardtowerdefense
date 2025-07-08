@@ -487,3 +487,101 @@ body {
         left: 10px;
     }
 }
+
+/* Map Expansion Notifications */
+.map-expansion-notification {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    border: 2px solid #4CAF50;
+    max-width: 500px;
+    text-align: center;
+    z-index: 2000;
+    animation: slideInFromTop 0.5s ease-out;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.map-expansion-notification.destroyed-towers {
+    border-color: #f44336;
+}
+
+.map-expansion-notification.new-path {
+    border-color: #2196F3;
+}
+
+.map-expansion-notification.debug {
+    border-color: #FF9800;
+    background: rgba(255, 152, 0, 0.1);
+}
+
+.map-expansion-notification h3 {
+    margin: 0 0 10px 0;
+    font-size: 1.2em;
+}
+
+.map-expansion-notification p {
+    margin: 8px 0;
+    line-height: 1.4;
+}
+
+.map-expansion-notification ul {
+    text-align: left;
+    margin: 10px 0;
+    padding-left: 20px;
+}
+
+.map-expansion-notification li {
+    margin: 5px 0;
+    color: #ffcccc;
+}
+
+@keyframes slideInFromTop {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -70%);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+}
+
+/* Camera Help Section */
+.camera-help {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #2196F3;
+    max-width: 300px;
+    font-size: 12px;
+    z-index: 1000;
+}
+
+.camera-help h4 {
+    margin: 0 0 10px 0;
+    color: #2196F3;
+    font-size: 14px;
+}
+
+.camera-help p {
+    margin: 5px 0;
+    line-height: 1.4;
+}
+
+.camera-help strong {
+    color: #64B5F6;
+}
+
+.camera-help small {
+    color: #999;
+    font-style: italic;
+}

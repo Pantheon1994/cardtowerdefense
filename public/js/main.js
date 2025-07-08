@@ -52,6 +52,22 @@ function setupChatInterface() {
       chatInput.focus();
     }
   });
+
+  // Add debug key handlers
+  document.addEventListener('keydown', (e) => {
+    // Don't trigger debug keys if chat is focused
+    if (document.activeElement === chatInput) {
+      return;
+    }
+
+    if (e.key === '5') {
+      // Skip to wave 5
+      e.preventDefault();
+      if (gameClient) {
+        gameClient.debugSkipToWave(5);
+      }
+    }
+  });
 }
 
 function sendChatMessage() {

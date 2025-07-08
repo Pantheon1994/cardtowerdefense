@@ -33,9 +33,19 @@ const GAME_EVENTS = {
   TOWER_INFO: 'tower_info',
   CHANGE_TARGETING_MODE: 'change_targeting_mode',
   
+  // Map expansion events
+  MAP_EXPANDED: 'map_expanded',
+  
   // Chat events
   CHAT_MESSAGE: 'chat_message',
   CHAT_MESSAGE_BROADCAST: 'chat_message_broadcast',
+  
+  // Room events
+  CREATE_ROOM: 'create_room',
+  ROOM_CREATED: 'room_created',
+  START_WAVE: 'start_wave',
+  WAVE_STARTED: 'wave_started',
+  RESET_GAME: 'reset_game',
   
   // Error events
   ERROR: 'error'
