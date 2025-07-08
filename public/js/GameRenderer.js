@@ -1456,4 +1456,24 @@ class GameRenderer {
     const chatInput = document.getElementById('chatInput');
     return chatInput && document.activeElement === chatInput;
   }
+
+  // Affiche un effet visuel pour l'anti-heal (croix violette au-dessus de l'ennemi)
+  drawAntiHealEffect(enemy, effect, currentTime) {
+    if (!enemy) return;
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.strokeStyle = '#b400ff';
+    ctx.lineWidth = 3;
+    // Croiser deux lignes sur la tête de l'ennemi
+    const x = enemy.x;
+    const y = enemy.y - 28;
+    ctx.beginPath();
+    ctx.moveTo(x - 10, y - 10);
+    ctx.lineTo(x + 10, y + 10);
+    ctx.moveTo(x + 10, y - 10);
+    ctx.lineTo(x - 10, y + 10);
+    ctx.stroke();
+    ctx.restore();
+  }
 }
